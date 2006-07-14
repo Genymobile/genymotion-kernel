@@ -63,6 +63,9 @@
 
 #include <trace/events/task.h>
 #include "internal.h"
+#ifdef CONFIG_QEMU_TRACE
+	void qemu_trace_thread_name(char *name);
+#endif
 
 #include <trace/events/sched.h>
 
@@ -1071,6 +1074,9 @@ void set_task_comm(struct task_struct *tsk, char *buf)
 	strlcpy(tsk->comm, buf, sizeof(tsk->comm));
 	task_unlock(tsk);
 	perf_event_comm(tsk);
+#ifdef CONFIG_QEMU_TRACE
+	qemu_trace_thread_name(buf);
+#endif
 }
 
 static void filename_to_taskname(char *tcomm, const char *fn, unsigned int len)
@@ -1451,6 +1457,10 @@ int search_binary_handler(struct linux_binprm *bprm,struct pt_regs *regs)
 
 EXPORT_SYMBOL(search_binary_handler);
 
+#ifdef CONFIG_QEMU_TRACE
+extern void qemu_trace_execve(int argc, char __user * __user * argv);
+#endif
+
 /*
  * sys_execve() executes a new program.
  */
@@ -1540,6 +1550,10 @@ static int do_execve_common(const char *filename,
 	retval = copy_strings(bprm->argc, argv, bprm);
 	if (retval < 0)
 		goto out;
+
+#ifdef CONFIG_QEMU_TRACE
+        qemu_trace_execve(bprm->argc, argv);
+#endif
 
 	retval = search_binary_handler(bprm,regs);
 	if (retval < 0)

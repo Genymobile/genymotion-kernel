@@ -724,6 +724,11 @@ ENTRY(__switch_to)
 	str	r7, [r8]
 #endif
  THUMB(	mov	ip, r4			   )
+#ifdef CONFIG_QEMU_TRACE
+/*
+	mcr	p15, 0, r0, c15, c0, 0		@ signal context switch
+*/
+#endif
 	mov	r0, r5
  ARM(	ldmia	r4, {r4 - sl, fp, sp, pc}  )	@ Load all regs saved previously
  THUMB(	ldmia	ip!, {r4 - sl, fp}	   )	@ Load all regs saved previously

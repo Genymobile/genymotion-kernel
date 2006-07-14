@@ -936,6 +936,11 @@ void vm_stat_account(struct mm_struct *mm, unsigned long flags,
 }
 #endif /* CONFIG_PROC_FS */
 
+#ifdef CONFIG_QEMU_TRACE
+extern void qemu_trace_mmap(struct vm_area_struct * vma);
+extern void qemu_trace_munmap(unsigned long start, unsigned long end);
+#endif
+
 /*
  * If a hint addr is less than mmap_min_addr change hint to be as
  * low as possible but still greater than mmap_min_addr
@@ -1339,6 +1344,10 @@ munmap_back:
 		if (error)
 			goto free_vma;
 	}
+
+#ifdef CONFIG_QEMU_TRACE
+        qemu_trace_mmap(vma);       
+#endif
 
 	if (vma_wants_writenotify(vma)) {
 		pgprot_t pprot = vma->vm_page_prot;
@@ -2125,6 +2134,10 @@ int do_munmap(struct mm_struct *mm, unsigned long start, size_t len)
 	 * Remove the vma's, and unmap the actual pages
 	 */
 	detach_vmas_to_be_unmapped(mm, vma, prev, end);
+
+#ifdef CONFIG_QEMU_TRACE
+	qemu_trace_munmap(start, end);
+#endif
 	unmap_region(mm, vma, prev, start, end);
 
 	/* Fix up all other VM information */
