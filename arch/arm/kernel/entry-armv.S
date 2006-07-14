@@ -715,6 +715,11 @@ ENTRY(__switch_to)
 	ldr	r0, =thread_notify_head
 	mov	r1, #THREAD_NOTIFY_SWITCH
 	bl	atomic_notifier_call_chain
+#ifdef CONFIG_QEMU_TRACE
+/*
+	mcr	p15, 0, r0, c15, c0, 0		@ signal context switch
+*/
+#endif
 	mov	r0, r5
 	ldmia	r4, {r4 - sl, fp, sp, pc}	@ Load all regs saved previously
 ENDPROC(__switch_to)

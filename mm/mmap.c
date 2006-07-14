@@ -906,6 +906,11 @@ void vm_stat_account(struct mm_struct *mm, unsigned long flags,
 }
 #endif /* CONFIG_PROC_FS */
 
+#ifdef CONFIG_QEMU_TRACE
+extern void qemu_trace_mmap(struct vm_area_struct * vma);
+extern void qemu_trace_munmap(unsigned long start, unsigned long end);
+#endif
+
 /*
  * The caller must hold down_write(current->mm->mmap_sem).
  */
@@ -1208,6 +1213,10 @@ munmap_back:
 	addr = vma->vm_start;
 	pgoff = vma->vm_pgoff;
 	vm_flags = vma->vm_flags;
+
+#ifdef CONFIG_QEMU_TRACE
+        qemu_trace_mmap(vma);       
+#endif
 
 	if (vma_wants_writenotify(vma))
 		vma->vm_page_prot = vm_get_page_prot(vm_flags & ~VM_SHARED);
@@ -1935,6 +1944,10 @@ int do_munmap(struct mm_struct *mm, unsigned long start, size_t len)
 	 * Remove the vma's, and unmap the actual pages
 	 */
 	detach_vmas_to_be_unmapped(mm, vma, prev, end);
+
+#ifdef CONFIG_QEMU_TRACE
+	qemu_trace_munmap(start, end);
+#endif
 	unmap_region(mm, vma, prev, start, end);
 
 	/* Fix up all other VM information */

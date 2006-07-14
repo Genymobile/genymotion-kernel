@@ -1340,6 +1340,10 @@ struct task_struct * __cpuinit fork_idle(int cpu)
 	return task;
 }
 
+#ifdef CONFIG_QEMU_TRACE
+extern void qemu_trace_fork(struct task_struct *forked, unsigned long clone_flags);
+#endif
+
 /*
  *  Ok, this is the main fork-routine.
  *
@@ -1440,6 +1444,10 @@ long do_fork(unsigned long clone_flags,
 
 		tracehook_report_clone_complete(trace, regs,
 						clone_flags, nr, p);
+
+#ifdef CONFIG_QEMU_TRACE
+                qemu_trace_fork(p, clone_flags);
+#endif
 
 		if (clone_flags & CLONE_VFORK) {
 			freezer_do_not_count();

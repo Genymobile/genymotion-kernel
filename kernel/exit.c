@@ -59,6 +59,11 @@ DEFINE_TRACE(sched_process_free);
 DEFINE_TRACE(sched_process_exit);
 DEFINE_TRACE(sched_process_wait);
 
+#ifdef CONFIG_QEMU_TRACE
+void qemu_trace_thread_name(char *name);
+void qemu_trace_exit(int code);
+#endif
+
 static void exit_mm(struct task_struct * tsk);
 
 static inline int task_detached(struct task_struct *p)
@@ -435,6 +440,9 @@ void daemonize(const char *name, ...)
 	va_start(args, name);
 	vsnprintf(current->comm, sizeof(current->comm), name, args);
 	va_end(args);
+#ifdef CONFIG_QEMU_TRACE
+	qemu_trace_thread_name(current->comm);
+#endif
 
 	/*
 	 * If we were started as result of loading a module, close all of the
@@ -1125,6 +1133,12 @@ NORET_TYPE void do_exit(long code)
 	preempt_disable();
 	/* causes final put_task_struct in finish_task_switch(). */
 	tsk->state = TASK_DEAD;
+
+#ifdef CONFIG_QEMU_TRACE
+	/* Emit a trace record for the exit() call. */
+	qemu_trace_exit(code);
+#endif
+
 	schedule();
 	BUG();
 	/* Avoid "noreturn function does return".  */

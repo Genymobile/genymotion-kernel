@@ -2641,6 +2641,10 @@ asmlinkage void schedule_tail(struct task_struct *prev)
 		put_user(task_pid_vnr(current), current->set_child_tid);
 }
 
+#ifdef CONFIG_QEMU_TRACE
+void qemu_trace_cs(struct task_struct *next);
+#endif
+
 /*
  * context_switch - switch to the new MM and the new
  * thread's register state.
@@ -2681,6 +2685,11 @@ context_switch(struct rq *rq, struct task_struct *prev,
 	 */
 #ifndef __ARCH_WANT_UNLOCKED_CTXSW
 	spin_release(&rq->lock.dep_map, 1, _THIS_IP_);
+#endif
+
+#ifdef CONFIG_QEMU_TRACE
+	/* Emit a trace record for the context switch. */
+	qemu_trace_cs(next);
 #endif
 
 	/* Here we just switch the register state and the stack. */
