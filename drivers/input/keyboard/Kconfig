@@ -304,6 +304,11 @@ config KEYBOARD_GPIO
 	  To compile this driver as a module, choose M here: the
 	  module will be called gpio-keys.
 
+config KEYBOARD_GOLDFISH_EVENTS
+	tristate "Generic Input Event device for Goldfish"
+	help
+	  no help
+
 config KEYBOARD_MAPLE
 	tristate "Maple bus keyboard"
 	depends on SH_DREAMCAST && MAPLE
