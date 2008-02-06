@@ -307,4 +307,10 @@ config AB8500_BATTERY_THERM_ON_BATCTRL
 	help
 	  Say Y to enable battery temperature measurements using
 	  thermistor connected on BATCTRL ADC.
+
+config BATTERY_GOLDFISH
+	tristate "Goldfish battery driver"
+	help
+	  Say Y to enable support for the battery and AC power in the Goldfish emulator.
+
 endif # POWER_SUPPLY
