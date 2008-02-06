@@ -88,4 +88,9 @@ config CHARGER_PCF50633
 	help
 	 Say Y to include support for NXP PCF50633 Main Battery Charger.
 
+config BATTERY_GOLDFISH
+	tristate "Goldfish battery driver"
+	help
+	  Say Y to enable support for the battery and AC power in the Goldfish emulator.
+
 endif # POWER_SUPPLY
