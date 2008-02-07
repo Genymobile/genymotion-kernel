@@ -171,6 +171,14 @@ config MMC_TIFM_SD
           To compile this driver as a module, choose M here: the
 	  module will be called tifm_sd.
 
+config MMC_GOLDFISH
+	tristate "goldfish qemu Multimedia Card Interface support"
+	depends on ARCH_GOLDFISH
+	help
+	  This selects the Goldfish Multimedia card Interface emulation.
+
+	  If unsure, say N.
+
 config MMC_SPI
 	tristate "MMC/SD/SDIO over SPI"
 	depends on SPI_MASTER && !HIGHMEM && HAS_DMA
