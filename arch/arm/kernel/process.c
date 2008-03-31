@@ -336,6 +336,16 @@ int dump_fpu (struct pt_regs *regs, struct user_fp *fp)
 EXPORT_SYMBOL(dump_fpu);
 
 /*
+ * Capture the user space registers if the task is not running (in user space)
+ */
+int dump_task_regs(struct task_struct *tsk, elf_gregset_t *regs)
+{
+	struct pt_regs ptregs = *task_pt_regs(tsk);
+	elf_core_copy_regs(regs, &ptregs);
+	return 1;
+}
+
+/*
  * Shuffle the argument into the correct register before calling the
  * thread function.  r1 is the thread argument, r2 is the pointer to
  * the thread function, and r3 points to the exit function.
