@@ -20,6 +20,7 @@
 #include <linux/device.h>
 #include <linux/sched.h>
 #include <linux/spinlock.h>
+#include <linux/sysrq.h>
 #include <linux/kernel_debugger.h>
 
 #define dprintf(fmt...) (ctxt->printf(ctxt->cookie, fmt))
@@ -45,10 +46,33 @@ static void do_ps(struct kdbg_ctxt *ctxt)
 	read_unlock(&tasklist_lock);
 }
 
+int log_buf_copy(char *dest, int idx, int len);
+extern int do_syslog(int type, char __user *bug, int count);
+static void do_sysrq(struct kdbg_ctxt *ctxt, char rq)
+{
+	char buf[128];
+	int ret;
+	int idx = 0;
+	do_syslog(5 /* clear */, NULL, 0);
+	__handle_sysrq(rq, NULL, 0);
+	while (1) {
+		ret = log_buf_copy(buf, idx, sizeof(buf) - 1);
+		if (ret <= 0)
+			break;
+		buf[ret] = 0;
+		dprintf("%s", buf);
+		idx += ret;
+	}
+}
+
 int kernel_debugger(struct kdbg_ctxt *ctxt, char *cmd)
 {
 	if (!strcmp(cmd, "ps"))
 		do_ps(ctxt);
+	if (!strcmp(cmd, "sysrq"))
+		do_sysrq(ctxt, 'h');
+	if (!strncmp(cmd, "sysrq ", 6))
+		do_sysrq(ctxt, cmd[6]);
 
 	return 0;
 }
