@@ -80,6 +80,7 @@ static inline int valid_mmap_phys_addr_range(unsigned long pfn, size_t size)
 }
 #endif
 
+#if defined(CONFIG_DEVMEM) || defined(CONFIG_DEVKMEM)
 #ifdef CONFIG_STRICT_DEVMEM
 static inline int range_is_allowed(unsigned long pfn, unsigned long size)
 {
@@ -105,7 +106,9 @@ static inline int range_is_allowed(unsigned long pfn, unsigned long size)
 	return 1;
 }
 #endif
+#endif
 
+#ifdef CONFIG_DEVMEM
 void __attribute__((weak)) unxlate_dev_mem_ptr(unsigned long phys, void *addr)
 {
 }
@@ -254,6 +257,9 @@ static ssize_t write_mem(struct file * file, const char __user * buf,
 	*ppos += written;
 	return written;
 }
+#endif	/* CONFIG_DEVMEM */
+
+#if defined(CONFIG_DEVMEM) || defined(CONFIG_DEVKMEM)
 
 int __attribute__((weak)) phys_mem_access_prot_allowed(struct file *file,
 	unsigned long pfn, unsigned long size, pgprot_t *vma_prot)
@@ -367,6 +373,7 @@ static int mmap_mem(struct file * file, struct vm_area_struct * vma)
 	}
 	return 0;
 }
+#endif	/* CONFIG_DEVMEM */
 
 #ifdef CONFIG_DEVKMEM
 static int mmap_kmem(struct file * file, struct vm_area_struct * vma)
@@ -755,6 +762,8 @@ static loff_t null_lseek(struct file * file, loff_t offset, int orig)
 	return file->f_pos = 0;
 }
 
+#if defined(CONFIG_DEVMEM) || defined(CONFIG_DEVKMEM) || defined(CONFIG_DEVPORT)
+
 /*
  * The memory devices use the full 32/64 bits of the offset, and so we cannot
  * check against negative addresses: they are ok. The return value is weird,
@@ -786,10 +795,14 @@ static loff_t memory_lseek(struct file * file, loff_t offset, int orig)
 	return ret;
 }
 
+#endif
+
+#if defined(CONFIG_DEVMEM) || defined(CONFIG_DEVKMEM) || defined(CONFIG_DEVPORT)
 static int open_port(struct inode * inode, struct file * filp)
 {
 	return capable(CAP_SYS_RAWIO) ? 0 : -EPERM;
 }
+#endif
 
 #define zero_lseek	null_lseek
 #define full_lseek      null_lseek
@@ -799,6 +812,7 @@ static int open_port(struct inode * inode, struct file * filp)
 #define open_kmem	open_mem
 #define open_oldmem	open_mem
 
+#ifdef CONFIG_DEVMEM
 static const struct file_operations mem_fops = {
 	.llseek		= memory_lseek,
 	.read		= read_mem,
@@ -807,6 +821,7 @@ static const struct file_operations mem_fops = {
 	.open		= open_mem,
 	.get_unmapped_area = get_unmapped_area_mem,
 };
+#endif
 
 #ifdef CONFIG_DEVKMEM
 static const struct file_operations kmem_fops = {
@@ -894,11 +909,13 @@ static int memory_open(struct inode * inode, struct file * filp)
 
 	lock_kernel();
 	switch (iminor(inode)) {
+#ifdef CONFIG_DEVMEM
 		case 1:
 			filp->f_op = &mem_fops;
 			filp->f_mapping->backing_dev_info =
 				&directly_mappable_cdev_bdi;
 			break;
+#endif
 #ifdef CONFIG_DEVKMEM
 		case 2:
 			filp->f_op = &kmem_fops;
@@ -955,7 +972,9 @@ static const struct {
 	umode_t			mode;
 	const struct file_operations	*fops;
 } devlist[] = { /* list of minor devices */
+#ifdef CONFIG_DEVMEM
 	{1, "mem",     S_IRUSR | S_IWUSR | S_IRGRP, &mem_fops},
+#endif
 #ifdef CONFIG_DEVKMEM
 	{2, "kmem",    S_IRUSR | S_IWUSR | S_IRGRP, &kmem_fops},
 #endif
