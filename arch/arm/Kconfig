@@ -206,6 +206,14 @@ config ARCH_AAEC2000
 	help
 	  This enables support for systems based on the Agilent AAEC-2000
 
+config ARCH_GOLDFISH
+	bool "Goldfish"
+	select CPU_ARM926T
+	select GENERIC_TIME
+	select GENERIC_CLOCKEVENTS
+	help
+	  Support for Goldfish Virtual Platform.
+
 config ARCH_INTEGRATOR
 	bool "ARM Ltd. Integrator family"
 	select ARM_AMBA
@@ -591,6 +599,8 @@ config ARCH_W90X900
 		can login www.mcuos.com or www.nuvoton.com to know more.
 
 endchoice
+
+source "arch/arm/mach-goldfish/Kconfig"
 
 source "arch/arm/mach-clps711x/Kconfig"
 
