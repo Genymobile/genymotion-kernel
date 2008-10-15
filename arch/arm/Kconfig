@@ -266,6 +266,14 @@ choice
 	prompt "ARM system type"
 	default ARCH_VERSATILE
 
+config ARCH_GOLDFISH
+	bool "Goldfish"
+	select CPU_ARM926T
+	select GENERIC_TIME
+	select GENERIC_CLOCKEVENTS
+	help
+	  Support for Goldfish Virtual Platform.
+
 config ARCH_INTEGRATOR
 	bool "ARM Ltd. Integrator family"
 	select ARM_AMBA
@@ -1033,6 +1041,8 @@ source "arch/arm/mach-ep93xx/Kconfig"
 source "arch/arm/mach-footbridge/Kconfig"
 
 source "arch/arm/mach-gemini/Kconfig"
+
+source "arch/arm/mach-goldfish/Kconfig"
 
 source "arch/arm/mach-h720x/Kconfig"
 

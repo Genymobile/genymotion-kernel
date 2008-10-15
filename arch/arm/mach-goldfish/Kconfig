@@ -1,0 +1,11 @@
+if ARCH_GOLDFISH
+
+menu "Goldfish Options"
+
+config MACH_GOLDFISH
+	bool "Goldfish (Virtual Platform)"
+	select CPU_ARM926T
+
+endmenu
+
+endif
