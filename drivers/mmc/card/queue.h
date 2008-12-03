@@ -17,6 +17,9 @@ struct mmc_queue {
 	char			*bounce_buf;
 	struct scatterlist	*bounce_sg;
 	unsigned int		bounce_sg_len;
+#ifdef CONFIG_MMC_BLOCK_PARANOID_RESUME
+	int			check_status;
+#endif
 };
 
 extern int mmc_init_queue(struct mmc_queue *, struct mmc_card *, spinlock_t *);

@@ -32,6 +32,13 @@ config MMC_BLOCK_BOUNCE
 
 	  If unsure, say Y here.
 
+config MMC_BLOCK_PARANOID_RESUME
+	bool "Check card status on resume"
+        depends on MMC_BLOCK
+        default y
+        help
+          Nohelp
+
 config SDIO_UART
 	tristate "SDIO UART/GPS class support"
 	help

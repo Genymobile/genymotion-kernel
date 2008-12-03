@@ -14,7 +14,9 @@
 #include <linux/freezer.h>
 #include <linux/kthread.h>
 #include <linux/scatterlist.h>
+#include <linux/delay.h>
 
+#include <linux/mmc/mmc.h>
 #include <linux/mmc/card.h>
 #include <linux/mmc/host.h>
 #include "queue.h"
@@ -70,7 +72,33 @@ static int mmc_queue_thread(void *d)
 			continue;
 		}
 		set_current_state(TASK_RUNNING);
+#ifdef CONFIG_MMC_BLOCK_PARANOID_RESUME
+		if (mq->check_status) {
+			struct mmc_command cmd;
 
+			do {
+				int err;
+
+				cmd.opcode = MMC_SEND_STATUS;
+				cmd.arg = mq->card->rca << 16;
+				cmd.flags = MMC_RSP_R1 | MMC_CMD_AC;
+
+				mmc_claim_host(mq->card->host);
+				err = mmc_wait_for_cmd(mq->card->host, &cmd, 5);
+				mmc_release_host(mq->card->host);
+
+				if (err) {
+					printk(KERN_ERR "%s: failed to get status (%d)\n",
+					       __func__, err);
+					msleep(5);
+					continue;
+				}
+				printk(KERN_DEBUG "%s: status 0x%.8x\n", __func__, cmd.resp[0]);
+			} while (!(cmd.resp[0] & R1_READY_FOR_DATA) ||
+				(R1_CURRENT_STATE(cmd.resp[0]) == 7));
+			mq->check_status = 0;
+                }
+#endif
 		mq->issue_fn(mq, req);
 	} while (1);
 	up(&mq->thread_sem);
