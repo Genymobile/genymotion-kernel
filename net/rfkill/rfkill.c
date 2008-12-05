@@ -512,7 +512,7 @@ static void rfkill_release(struct device *dev)
 	module_put(THIS_MODULE);
 }
 
-#ifdef CONFIG_PM
+#ifdef CONFIG_RFKILL_PM
 static int rfkill_suspend(struct device *dev, pm_message_t state)
 {
 	struct rfkill *rfkill = to_rfkill(dev);
