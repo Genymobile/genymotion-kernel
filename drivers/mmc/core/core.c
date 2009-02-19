@@ -857,6 +857,7 @@ void mmc_stop_host(struct mmc_host *host)
 	spin_unlock_irqrestore(&host->lock, flags);
 #endif
 
+	cancel_delayed_work(&host->detect);
 	mmc_flush_scheduled_work();
 
 	mmc_bus_get(host);
@@ -887,6 +888,7 @@ int mmc_suspend_host(struct mmc_host *host, pm_message_t state)
 	if (mmc_bus_needs_resume(host))
 		return 0;
 
+	cancel_delayed_work(&host->detect);
 	mmc_flush_scheduled_work();
 
 	mmc_bus_get(host);
