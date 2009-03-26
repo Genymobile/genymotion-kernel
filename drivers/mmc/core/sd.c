@@ -571,7 +571,6 @@ static void mmc_sd_detect(struct mmc_host *host)
 #ifdef CONFIG_MMC_PARANOID_SD_INIT
 	while(retries) {
 		err = mmc_send_status(host->card, NULL);
-		printk("%s(%s): err = %d\n", __func__, mmc_hostname(host), err);
 		if (err) {
 			retries--;
 			udelay(5);
