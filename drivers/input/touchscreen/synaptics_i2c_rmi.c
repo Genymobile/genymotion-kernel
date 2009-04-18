@@ -24,8 +24,6 @@
 #include <linux/platform_device.h>
 #include <linux/synaptics_i2c_rmi.h>
 
-#define swap(x, y) do { typeof(x) z = x; x = y; y = z; } while (0)
-
 static struct workqueue_struct *synaptics_wq;
 
 struct synaptics_ts_data {
@@ -222,7 +220,7 @@ static irqreturn_t synaptics_ts_irq_handler(int irq, void *dev_id)
 	struct synaptics_ts_data *ts = dev_id;
 
 	/* printk("synaptics_ts_irq_handler\n"); */
-	disable_irq(ts->client->irq);
+	disable_irq_nosync(ts->client->irq);
 	queue_work(synaptics_wq, &ts->work);
 	return IRQ_HANDLED;
 }
