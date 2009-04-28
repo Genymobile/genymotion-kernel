@@ -242,7 +242,13 @@ static int ashmem_mmap(struct file *file, struct vm_area_struct *vma)
 	}
 	get_file(asma->file);
 
-	shmem_set_file(vma, asma->file);
+	if (vma->vm_flags & VM_SHARED)
+		shmem_set_file(vma, asma->file);
+	else {
+		if (vma->vm_file)
+			fput(vma->vm_file);
+		vma->vm_file = asma->file;
+	}
 	vma->vm_flags |= VM_CAN_NONLINEAR;
 
 out:
