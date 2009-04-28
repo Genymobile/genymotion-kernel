@@ -30,6 +30,10 @@
 #include <linux/shmem_fs.h>
 #include <linux/ashmem.h>
 
+#define ASHMEM_NAME_PREFIX "dev/ashmem/"
+#define ASHMEM_NAME_PREFIX_LEN (sizeof(ASHMEM_NAME_PREFIX) - 1)
+#define ASHMEM_FULL_NAME_LEN (ASHMEM_NAME_LEN + ASHMEM_NAME_PREFIX_LEN)
+
 /*
  * ashmem_area - anonymous shared memory area
  * Lifecycle: From our parent file's open() until its release()
@@ -37,7 +41,7 @@
  * Big Note: Mappings do NOT pin this structure; it dies on close()
  */
 struct ashmem_area {
-	char name[ASHMEM_NAME_LEN];	/* optional name for /proc/pid/maps */
+	char name[ASHMEM_FULL_NAME_LEN];/* optional name for /proc/pid/maps */
 	struct list_head unpinned_list;	/* list of all ashmem areas */
 	struct file *file;		/* the shmem-based backing file */
 	size_t size;			/* size of the mapping, in bytes */
@@ -183,6 +187,7 @@ static int ashmem_open(struct inode *inode, struct file *file)
 		return -ENOMEM;
 
 	INIT_LIST_HEAD(&asma->unpinned_list);
+	memcpy(asma->name, ASHMEM_NAME_PREFIX, ASHMEM_NAME_PREFIX_LEN);
 	asma->prot_mask = PROT_MASK;
 	file->private_data = asma;
 
@@ -229,7 +234,7 @@ static int ashmem_mmap(struct file *file, struct vm_area_struct *vma)
 		char *name = ASHMEM_NAME_DEF;
 		struct file *vmfile;
 
-		if (asma->name[0] != '\0')
+		if (asma->name[ASHMEM_NAME_PREFIX_LEN] != '\0')
 			name = asma->name;
 
 		/* ... and allocate the backing shmem file */
@@ -340,9 +345,10 @@ static int set_name(struct ashmem_area *asma, void __user *name)
 		goto out;
 	}
 
-	if (unlikely(copy_from_user(asma->name, name, ASHMEM_NAME_LEN)))
+	if (unlikely(copy_from_user(asma->name + ASHMEM_NAME_PREFIX_LEN,
+				    name, ASHMEM_NAME_LEN)))
 		ret = -EFAULT;
-	asma->name[ASHMEM_NAME_LEN-1] = '\0';
+	asma->name[ASHMEM_FULL_NAME_LEN-1] = '\0';
 
 out:
 	mutex_unlock(&ashmem_mutex);
@@ -355,15 +361,16 @@ static int get_name(struct ashmem_area *asma, void __user *name)
 	int ret = 0;
 
 	mutex_lock(&ashmem_mutex);
-	if (asma->name[0] != '\0') {
+	if (asma->name[ASHMEM_NAME_PREFIX_LEN] != '\0') {
 		size_t len;
 
 		/*
 		 * Copying only `len', instead of ASHMEM_NAME_LEN, bytes
 		 * prevents us from revealing one user's stack to another.
 		 */
-		len = strlen(asma->name) + 1;
-		if (unlikely(copy_to_user(name, asma->name, len)))
+		len = strlen(asma->name + ASHMEM_NAME_PREFIX_LEN) + 1;
+		if (unlikely(copy_to_user(name,
+				asma->name + ASHMEM_NAME_PREFIX_LEN, len)))
 			ret = -EFAULT;
 	} else {
 		if (unlikely(copy_to_user(name, ASHMEM_NAME_DEF,
