@@ -53,6 +53,7 @@
 
 static unsigned char __iomem *qt_base;
 static int init_called;
+static uint32_t qemu_trace_paddr;
 
 /* PIDs that start before our device registered */
 #define MAX_INIT_PIDS   2048
@@ -330,8 +331,30 @@ static void qemu_trace_dump_init_threads(void)
 	}
 }
 
+static int qemu_trace_mmap_fop(struct file *file, struct vm_area_struct *vma)
+{
+	int ret = io_remap_pfn_range(vma, vma->vm_start,
+			(qemu_trace_paddr >> PAGE_SHIFT) + 1,
+			PAGE_SIZE, vma->vm_page_prot);
+	if (ret < 0)
+		return ret;
+	return 0;
+}
+
+static const struct file_operations qemu_trace_fops = {
+	.owner = THIS_MODULE,
+	.mmap = qemu_trace_mmap_fop,
+};
+
+static struct miscdevice qemu_trace_device = {
+	.minor = MISC_DYNAMIC_MINOR,
+	.name = "qemu_trace",
+	.fops = &qemu_trace_fops,
+};
+
 static int qemu_trace_probe(struct platform_device *pdev)
 {
+	int err;
 	struct resource *r;
 
 	/* not thread safe, but this should not happen */
@@ -340,18 +363,28 @@ static int qemu_trace_probe(struct platform_device *pdev)
 		return -ENODEV;
 	}
 	r = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-	if (r == NULL)
+	if (r == NULL || r->end - r->start < 2 * PAGE_SIZE - 1)
 		return -EINVAL;
+	qemu_trace_paddr = r->start;
 	qt_base = ioremap(r->start, PAGE_SIZE);
 	printk(KERN_INFO "QEMU TRACE Device: The mapped IO base is %p\n", qt_base);
 
 	qemu_trace_dump_init_threads();
+	err = misc_register(&qemu_trace_device);
+	if (err)
+		goto err_misc_register;
 
 	return 0;
+
+err_misc_register:
+	iounmap(qt_base);
+	qt_base = NULL;
+	return err;
 }
 
 static int qemu_trace_remove(struct platform_device *pdev)
 {
+	misc_deregister(&qemu_trace_device);
 	iounmap(qt_base);
 	qt_base = NULL;
 	return 0;
