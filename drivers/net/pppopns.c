@@ -33,9 +33,10 @@
 
 #define GRE_HEADER_SIZE		8
 
-#define PPTP_GRE_MASK		htons(0x2001)
-#define PPTP_GRE_SEQ_MASK	htons(0x1000)
-#define PPTP_GRE_ACK_MASK	htons(0x0080)
+#define PPTP_GRE_BITS		htons(0x2001)
+#define PPTP_GRE_BITS_MASK	htons(0xEF7F)
+#define PPTP_GRE_SEQ_BIT	htons(0x1000)
+#define PPTP_GRE_ACK_BIT	htons(0x0080)
 #define PPTP_GRE_TYPE		htons(0x880B)
 
 #define PPP_ADDR	0xFF
@@ -78,13 +79,13 @@ static void pppopns_recv(struct sock *sk_raw, int length)
 		/* Check the header. */
 		hdr = (struct header *)skb->data;
 		if (hdr->type != PPTP_GRE_TYPE || hdr->call != opt->local ||
-				(hdr->bits & PPTP_GRE_MASK) != PPTP_GRE_MASK)
+			(hdr->bits & PPTP_GRE_BITS_MASK) != PPTP_GRE_BITS)
 			goto drop;
 
 		/* Skip all fields including optional ones. */
 		if (!skb_pull(skb, GRE_HEADER_SIZE +
-				(hdr->bits & PPTP_GRE_SEQ_MASK ? 4 : 0) +
-				(hdr->bits & PPTP_GRE_ACK_MASK ? 4 : 0)))
+				(hdr->bits & PPTP_GRE_SEQ_BIT ? 4 : 0) +
+				(hdr->bits & PPTP_GRE_ACK_BIT ? 4 : 0)))
 			goto drop;
 
 		/* Check the length. */
@@ -130,7 +131,7 @@ static int pppopns_xmit(struct ppp_channel *chan, struct sk_buff *skb)
 
 	/* Install PPTP GRE header. */
 	hdr = (struct header *)skb_push(skb, 12);
-	hdr->bits = PPTP_GRE_MASK | PPTP_GRE_SEQ_MASK;
+	hdr->bits = PPTP_GRE_BITS | PPTP_GRE_SEQ_BIT;
 	hdr->type = PPTP_GRE_TYPE;
 	hdr->length = htons(length);
 	hdr->call = opt->remote;

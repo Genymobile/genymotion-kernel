@@ -32,12 +32,12 @@
 #include <linux/ppp_channel.h>
 #include <net/tcp_states.h>
 
-#define L2TP_CONTROL_MASK	0x80
-#define L2TP_VERSION_MASK	0x0F
+#define L2TP_CONTROL_BIT	0x80
+#define L2TP_LENGTH_BIT		0x40
+#define L2TP_SEQUENCE_BIT	0x08
+#define L2TP_OFFSET_BIT		0x02
 #define L2TP_VERSION		0x02
-#define L2TP_LENGTH_MASK	0x40
-#define L2TP_OFFSET_MASK	0x02
-#define L2TP_SEQUENCE_MASK	0x08
+#define L2TP_VERSION_MASK	0x0F
 
 #define PPP_ADDR	0xFF
 #define PPP_CTRL	0x03
@@ -63,7 +63,7 @@ static int pppolac_recv(struct sock *sk_udp, struct sk_buff *skb)
 		goto drop;
 
 	/* Put it back if it is a control packet. */
-	if (skb->data[sizeof(struct udphdr)] & L2TP_CONTROL_MASK)
+	if (skb->data[sizeof(struct udphdr)] & L2TP_CONTROL_BIT)
 		return 1;
 
 	/* Now the packet is ours. Skip UDP header. */
@@ -76,20 +76,20 @@ static int pppolac_recv(struct sock *sk_udp, struct sk_buff *skb)
 	ptr = &skb->data[2];
 
 	/* Check the length if it is present. */
-	if (bits & L2TP_LENGTH_MASK) {
+	if (bits & L2TP_LENGTH_BIT) {
 		if ((ptr[0] << 8 | ptr[1]) != skb->len)
 			goto drop;
 		ptr += 2;
 	}
 
 	/* Skip all fields including optional ones. */
-	if (!skb_pull(skb, 6 + (bits & L2TP_SEQUENCE_MASK ? 4 : 0) +
-			(bits & L2TP_LENGTH_MASK ? 2 : 0) +
-			(bits & L2TP_OFFSET_MASK ? 2 : 0)))
+	if (!skb_pull(skb, 6 + (bits & L2TP_SEQUENCE_BIT ? 4 : 0) +
+			(bits & L2TP_LENGTH_BIT ? 2 : 0) +
+			(bits & L2TP_OFFSET_BIT ? 2 : 0)))
 		goto drop;
 
 	/* Skip the offset padding if it is present. */
-	if (bits & L2TP_OFFSET_MASK &&
+	if (bits & L2TP_OFFSET_BIT &&
 			!skb_pull(skb, skb->data[-2] << 8 | skb->data[-1]))
 		goto drop;
 
@@ -113,7 +113,7 @@ static int pppolac_recv(struct sock *sk_udp, struct sk_buff *skb)
 
 	/* Check the sequence if it is present. According to RFC 2661 page 10
 	 * and 43, the only thing to do is updating opt->sequencing. */
-	opt->sequencing = bits & L2TP_SEQUENCE_MASK;
+	opt->sequencing = bits & L2TP_SEQUENCE_BIT;
 
 	/* Skip PPP address and control if they are present. */
 	if (skb->len >= 2 && skb->data[0] == PPP_ADDR &&
@@ -153,7 +153,7 @@ static int pppolac_xmit(struct ppp_channel *chan, struct sk_buff *skb)
 	/* Install L2TP header. */
 	if (opt->sequencing) {
 		skb_push(skb, 10);
-		skb->data[0] = L2TP_SEQUENCE_MASK;
+		skb->data[0] = L2TP_SEQUENCE_BIT;
 		skb->data[6] = opt->sequence >> 8;
 		skb->data[7] = opt->sequence;
 		skb->data[8] = 0;
