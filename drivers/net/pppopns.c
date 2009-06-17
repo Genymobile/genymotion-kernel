@@ -230,8 +230,8 @@ static int pppopns_release(struct socket *sock)
 
 	if (sk->sk_state != PPPOX_NONE) {
 		struct sock *sk_raw = (struct sock *)pppox_sk(sk)->chan.private;
-		lock_sock(sk_raw);
 		pppox_unbind_sock(sk);
+		lock_sock(sk_raw);
 		sk_raw->sk_user_data = NULL;
 		release_sock(sk_raw);
 		sock_release(sk_raw->sk_socket);
