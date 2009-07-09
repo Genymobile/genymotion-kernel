@@ -161,6 +161,7 @@ static int pppopns_connect(struct socket *sock, struct sockaddr *useraddr,
 	struct sockaddr_storage ss;
 	struct socket *sock_tcp = NULL;
 	struct socket *sock_raw = NULL;
+	struct sock *sk_tcp;
 	struct sock *sk_raw;
 	int error;
 
@@ -175,21 +176,31 @@ static int pppopns_connect(struct socket *sock, struct sockaddr *useraddr,
 	sock_tcp = sockfd_lookup(addr->tcp_socket, &error);
 	if (!sock_tcp)
 		goto out;
+	sk_tcp = sock_tcp->sk;
 	error = -EPROTONOSUPPORT;
-	if (sock_tcp->sk->sk_protocol != IPPROTO_TCP)
+	if (sk_tcp->sk_protocol != IPPROTO_TCP)
 		goto out;
 	addrlen = sizeof(struct sockaddr_storage);
 	error = kernel_getpeername(sock_tcp, (struct sockaddr *)&ss, &addrlen);
 	if (error)
 		goto out;
+	if (!sk_tcp->sk_bound_dev_if) {
+		struct dst_entry *dst = sk_dst_get(sk_tcp);
+		error = -ENODEV;
+		if (!dst)
+			goto out;
+		sk_tcp->sk_bound_dev_if = dst->dev->ifindex;
+		dst_release(dst);
+	}
 
 	error = sock_create(ss.ss_family, SOCK_RAW, IPPROTO_GRE, &sock_raw);
 	if (error)
 		goto out;
+	sk_raw = sock_raw->sk;
+	sk_raw->sk_bound_dev_if = sk_tcp->sk_bound_dev_if;
 	error = kernel_connect(sock_raw, (struct sockaddr *)&ss, addrlen, 0);
 	if (error)
 		goto out;
-	sk_raw = sock_raw->sk;
 
 	po->chan.hdrlen = 14;
 	po->chan.private = sk_raw;

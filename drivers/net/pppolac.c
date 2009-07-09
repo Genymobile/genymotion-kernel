@@ -220,6 +220,14 @@ static int pppolac_connect(struct socket *sock, struct sockaddr *useraddr,
 	error = -EBUSY;
 	if (udp_sk(sk_udp)->encap_type || sk_udp->sk_user_data)
 		goto out;
+	if (!sk_udp->sk_bound_dev_if) {
+		struct dst_entry *dst = sk_dst_get(sk_udp);
+		error = -ENODEV;
+		if (!dst)
+			goto out;
+		sk_udp->sk_bound_dev_if = dst->dev->ifindex;
+		dst_release(dst);
+	}
 
 	po->chan.hdrlen = 12;
 	po->chan.private = sk_udp;
