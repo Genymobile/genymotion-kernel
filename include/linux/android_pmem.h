@@ -34,14 +34,6 @@
  */
 #define PMEM_GET_TOTAL_SIZE	_IOW(PMEM_IOCTL_MAGIC, 7, unsigned int)
 
-int is_pmem_file(struct file *file);
-int get_pmem_file(int fd, unsigned long *start, unsigned long *vstart,
-		  unsigned long *end, struct file **filp);
-int get_pmem_user_addr(struct file *file, unsigned long *start,
-		       unsigned long *end);
-void put_pmem_file(struct file* file);
-void flush_pmem_file(struct file *file, unsigned long start, unsigned long len);
-
 struct android_pmem_platform_data
 {
 	const char* name;
@@ -64,12 +56,37 @@ struct pmem_region {
 	unsigned long len;
 };
 
+#ifdef CONFIG_ANDROID_PMEM
+int is_pmem_file(struct file *file);
+int get_pmem_file(int fd, unsigned long *start, unsigned long *vstart,
+		  unsigned long *end, struct file **filp);
+int get_pmem_user_addr(struct file *file, unsigned long *start,
+		       unsigned long *end);
+void put_pmem_file(struct file* file);
+void flush_pmem_file(struct file *file, unsigned long start, unsigned long len);
 int pmem_setup(struct android_pmem_platform_data *pdata,
 	       long (*ioctl)(struct file *, unsigned int, unsigned long),
 	       int (*release)(struct inode *, struct file *));
-
 int pmem_remap(struct pmem_region *region, struct file *file,
 	       unsigned operation);
+
+#else
+static inline int is_pmem_file(struct file *file) { return 0; }
+static inline int get_pmem_file(int fd, unsigned long *start,
+				unsigned long *vstart, unsigned long *end,
+				struct file **filp) { return -ENOSYS; }
+static inline int get_pmem_user_addr(struct file *file, unsigned long *start,
+				     unsigned long *end) { return -ENOSYS; }
+static inline void put_pmem_file(struct file* file) { return; }
+static inline void flush_pmem_file(struct file *file, unsigned long start,
+				   unsigned long len) { return; }
+static inline int pmem_setup(struct android_pmem_platform_data *pdata,
+	      long (*ioctl)(struct file *, unsigned int, unsigned long),
+	      int (*release)(struct inode *, struct file *)) { return -ENOSYS; }
+
+static inline int pmem_remap(struct pmem_region *region, struct file *file,
+			     unsigned operation) { return -ENOSYS; }
+#endif
 
 #endif //_ANDROID_PPP_H_
 
