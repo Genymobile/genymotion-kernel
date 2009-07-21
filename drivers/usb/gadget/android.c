@@ -63,7 +63,6 @@ static const char longname[] = "Gadget Android";
 #define ADB_PRODUCT_ID	0x0002
 
 struct android_dev {
-	struct usb_gadget *gadget;
 	struct usb_composite_dev *cdev;
 
 	int product_id;
@@ -112,6 +111,16 @@ static struct usb_device_descriptor device_desc = {
 	.bcdDevice            = __constant_cpu_to_le16(0xffff),
 	.bNumConfigurations   = 1,
 };
+
+void android_usb_set_connected(int connected)
+{
+	if (_android_dev && _android_dev->cdev && _android_dev->cdev->gadget) {
+		if (connected)
+			usb_gadget_connect(_android_dev->cdev->gadget);
+		else
+			usb_gadget_disconnect(_android_dev->cdev->gadget);
+	}
+}
 
 static int __init android_bind_config(struct usb_configuration *c)
 {
@@ -250,7 +259,7 @@ static int adb_enable_release(struct inode *ip, struct file *fp)
 	return 0;
 }
 
-static struct file_operations adb_enable_fops = {
+static const struct file_operations adb_enable_fops = {
 	.owner =   THIS_MODULE,
 	.open =    adb_enable_open,
 	.release = adb_enable_release,
