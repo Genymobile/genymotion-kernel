@@ -649,10 +649,6 @@ static int mmc_blk_resume(struct mmc_card *card)
 #ifndef CONFIG_MMC_BLOCK_DEFERRED_RESUME
 		mmc_blk_set_blksize(md, card);
 #endif
-
-#ifdef CONFIG_MMC_BLOCK_PARANOID_RESUME
-		md->queue.check_status = 1;
-#endif
 		mmc_queue_resume(&md->queue);
 	}
 	return 0;

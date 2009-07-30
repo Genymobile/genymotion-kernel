@@ -32,13 +32,6 @@ config MMC_BLOCK_BOUNCE
 
 	  If unsure, say Y here.
 
-config MMC_BLOCK_PARANOID_RESUME
-	bool "Check card status on resume"
-        depends on MMC_BLOCK
-        default y
-        help
-          Nohelp
-
 config MMC_BLOCK_DEFERRED_RESUME
 	bool "Deferr MMC layer resume until I/O is requested"
 	depends on MMC_BLOCK
