@@ -2684,6 +2684,7 @@ fsg_function_unbind(struct usb_configuration *c, struct usb_function *f)
 	/* Free the data buffers */
 	for (i = 0; i < NUM_BUFFERS; ++i)
 		kfree(fsg->buffhds[i].buf);
+	switch_dev_unregister(&fsg->sdev);
 }
 
 static int __init
