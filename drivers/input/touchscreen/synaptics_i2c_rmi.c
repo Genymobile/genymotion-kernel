@@ -24,8 +24,6 @@
 #include <linux/platform_device.h>
 #include <linux/synaptics_i2c_rmi.h>
 
-#define swap(x, y) do { typeof(x) z = x; x = y; y = z; } while (0)
-
 static struct workqueue_struct *synaptics_wq;
 
 struct synaptics_ts_data {
@@ -33,6 +31,7 @@ struct synaptics_ts_data {
 	struct i2c_client *client;
 	struct input_dev *input_dev;
 	int use_irq;
+	bool has_relative_report;
 	struct hrtimer timer;
 	struct work_struct  work;
 	uint16_t max[2];
@@ -44,6 +43,8 @@ struct synaptics_ts_data {
 	int snap_down[2];
 	int snap_up[2];
 	uint32_t flags;
+	int reported_finger_count;
+	int8_t sensitivity_adjust;
 	int (*power)(int on);
 	struct early_suspend early_suspend;
 };
@@ -66,6 +67,11 @@ static int synaptics_init_panel(struct synaptics_ts_data *ts)
 	if (ret < 0)
 		printk(KERN_ERR "i2c_smbus_write_byte_data failed for No Clip Z\n");
 
+	ret = i2c_smbus_write_byte_data(ts->client, 0x44,
+					ts->sensitivity_adjust);
+	if (ret < 0)
+		pr_err("synaptics_ts: failed to set Sensitivity Adjust\n");
+
 err_page_select_failed:
 	ret = i2c_smbus_write_byte_data(ts->client, 0xff, 0x04); /* page select = 0x04 */
 	if (ret < 0)
@@ -85,6 +91,7 @@ static void synaptics_ts_work_func(struct work_struct *work)
 	uint8_t start_reg;
 	uint8_t buf[15];
 	struct synaptics_ts_data *ts = container_of(work, struct synaptics_ts_data, work);
+	int buf_len = ts->has_relative_report ? 15 : 13;
 
 	msg[0].addr = ts->client->addr;
 	msg[0].flags = 0;
@@ -93,7 +100,7 @@ static void synaptics_ts_work_func(struct work_struct *work)
 	start_reg = 0x00;
 	msg[1].addr = ts->client->addr;
 	msg[1].flags = I2C_M_RD;
-	msg[1].len = sizeof(buf);
+	msg[1].len = buf_len;
 	msg[1].buf = buf;
 
 	/* printk("synaptics_ts_work_func\n"); */
@@ -109,7 +116,7 @@ static void synaptics_ts_work_func(struct work_struct *work)
 			/*        buf[4], buf[5], buf[6], buf[7], */
 			/*        buf[8], buf[9], buf[10], buf[11], */
 			/*        buf[12], buf[13], buf[14], ret); */
-			if ((buf[14] & 0xc0) != 0x40) {
+			if ((buf[buf_len - 1] & 0xc0) != 0x40) {
 				printk(KERN_WARNING "synaptics_ts_work_func:"
 				       " bad read %x %x %x %x %x %x %x %x %x"
 				       " %x %x %x %x %x %x, ret %d\n",
@@ -123,7 +130,7 @@ static void synaptics_ts_work_func(struct work_struct *work)
 				continue;
 			}
 			bad_data = 0;
-			if ((buf[14] & 1) == 0) {
+			if ((buf[buf_len - 1] & 1) == 0) {
 				/* printk("read %d coordinates\n", i); */
 				break;
 			} else {
@@ -198,6 +205,26 @@ static void synaptics_ts_work_func(struct work_struct *work)
 					input_report_abs(ts->input_dev, ABS_HAT0X, pos[1][0]);
 					input_report_abs(ts->input_dev, ABS_HAT0Y, pos[1][1]);
 				}
+
+				if (!finger)
+					z = 0;
+				input_report_abs(ts->input_dev, ABS_MT_TOUCH_MAJOR, z);
+				input_report_abs(ts->input_dev, ABS_MT_WIDTH_MAJOR, w);
+				input_report_abs(ts->input_dev, ABS_MT_POSITION_X, pos[0][0]);
+				input_report_abs(ts->input_dev, ABS_MT_POSITION_Y, pos[0][1]);
+				input_mt_sync(ts->input_dev);
+				if (finger2_pressed) {
+					input_report_abs(ts->input_dev, ABS_MT_TOUCH_MAJOR, z);
+					input_report_abs(ts->input_dev, ABS_MT_WIDTH_MAJOR, w);
+					input_report_abs(ts->input_dev, ABS_MT_POSITION_X, pos[1][0]);
+					input_report_abs(ts->input_dev, ABS_MT_POSITION_Y, pos[1][1]);
+					input_mt_sync(ts->input_dev);
+				} else if (ts->reported_finger_count > 1) {
+					input_report_abs(ts->input_dev, ABS_MT_TOUCH_MAJOR, 0);
+					input_report_abs(ts->input_dev, ABS_MT_WIDTH_MAJOR, 0);
+					input_mt_sync(ts->input_dev);
+				}
+				ts->reported_finger_count = finger;
 				input_sync(ts->input_dev);
 			}
 		}
@@ -222,7 +249,7 @@ static irqreturn_t synaptics_ts_irq_handler(int irq, void *dev_id)
 	struct synaptics_ts_data *ts = dev_id;
 
 	/* printk("synaptics_ts_irq_handler\n"); */
-	disable_irq(ts->client->irq);
+	disable_irq_nosync(ts->client->irq);
 	queue_work(synaptics_wq, &ts->work);
 	return IRQ_HANDLED;
 }
@@ -238,6 +265,7 @@ static int synaptics_ts_probe(
 	uint16_t max_x, max_y;
 	int fuzz_x, fuzz_y, fuzz_p, fuzz_w;
 	struct synaptics_i2c_rmi_platform_data *pdata;
+	unsigned long irqflags;
 	int inactive_area_left;
 	int inactive_area_right;
 	int inactive_area_top;
@@ -316,6 +344,8 @@ static int synaptics_ts_probe(
 		while (pdata->version > panel_version)
 			pdata++;
 		ts->flags = pdata->flags;
+		ts->sensitivity_adjust = pdata->sensitivity_adjust;
+		irqflags = pdata->irqflags;
 		inactive_area_left = pdata->inactive_left;
 		inactive_area_right = pdata->inactive_right;
 		inactive_area_top = pdata->inactive_top;
@@ -333,6 +363,7 @@ static int synaptics_ts_probe(
 		fuzz_p = pdata->fuzz_p;
 		fuzz_w = pdata->fuzz_w;
 	} else {
+		irqflags = 0;
 		inactive_area_left = 0;
 		inactive_area_right = 0;
 		inactive_area_top = 0;
@@ -394,6 +425,13 @@ static int synaptics_ts_probe(
 		printk(KERN_ERR "i2c_smbus_write_byte_data failed for page select\n");
 		goto err_detect_failed;
 	}
+	ret = i2c_smbus_read_word_data(ts->client, 0x02);
+	if (ret < 0) {
+		printk(KERN_ERR "i2c_smbus_read_word_data failed\n");
+		goto err_detect_failed;
+	}
+	ts->has_relative_report = !(ret & 0x100);
+	printk(KERN_INFO "synaptics_ts_probe: Sensor properties %x\n", ret);
 	ret = i2c_smbus_read_word_data(ts->client, 0x04);
 	if (ret < 0) {
 		printk(KERN_ERR "i2c_smbus_read_word_data failed\n");
@@ -466,6 +504,10 @@ static int synaptics_ts_probe(
 	input_set_abs_params(ts->input_dev, ABS_TOOL_WIDTH, 0, 15, fuzz_w, 0);
 	input_set_abs_params(ts->input_dev, ABS_HAT0X, -inactive_area_left, max_x + inactive_area_right, fuzz_x, 0);
 	input_set_abs_params(ts->input_dev, ABS_HAT0Y, -inactive_area_top, max_y + inactive_area_bottom, fuzz_y, 0);
+	input_set_abs_params(ts->input_dev, ABS_MT_POSITION_X, -inactive_area_left, max_x + inactive_area_right, fuzz_x, 0);
+	input_set_abs_params(ts->input_dev, ABS_MT_POSITION_Y, -inactive_area_top, max_y + inactive_area_bottom, fuzz_y, 0);
+	input_set_abs_params(ts->input_dev, ABS_MT_TOUCH_MAJOR, 0, 255, fuzz_p, 0);
+	input_set_abs_params(ts->input_dev, ABS_MT_WIDTH_MAJOR, 0, 15, fuzz_w, 0);
 	/* ts->input_dev->name = ts->keypad_info->name; */
 	ret = input_register_device(ts->input_dev);
 	if (ret) {
@@ -473,7 +515,7 @@ static int synaptics_ts_probe(
 		goto err_input_register_device_failed;
 	}
 	if (client->irq) {
-		ret = request_irq(client->irq, synaptics_ts_irq_handler, 0, client->name, ts);
+		ret = request_irq(client->irq, synaptics_ts_irq_handler, irqflags, client->name, ts);
 		if (ret == 0) {
 			ret = i2c_smbus_write_byte_data(ts->client, 0xf1, 0x01); /* enable abs int */
 			if (ret)

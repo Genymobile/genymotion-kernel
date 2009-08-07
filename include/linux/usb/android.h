@@ -37,4 +37,6 @@ struct android_usb_platform_data {
 	int nluns;
 };
 
+extern void android_usb_set_connected(int on);
+
 #endif	/* __LINUX_USB_ANDROID_H */

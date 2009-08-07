@@ -32,6 +32,7 @@ struct synaptics_i2c_rmi_platform_data {
 				/* If non-zero another array entry follows */
 	int (*power)(int on);	/* Only valid in first array entry */
 	uint32_t flags;
+	unsigned long irqflags;
 	uint32_t inactive_left; /* 0x10000 = screen width */
 	uint32_t inactive_right; /* 0x10000 = screen width */
 	uint32_t inactive_top; /* 0x10000 = screen height */
@@ -48,6 +49,7 @@ struct synaptics_i2c_rmi_platform_data {
 	uint32_t fuzz_y; /* 0x10000 = screen height */
 	int fuzz_p;
 	int fuzz_w;
+	int8_t sensitivity_adjust;
 };
 
 #endif /* _LINUX_SYNAPTICS_I2C_RMI_H */

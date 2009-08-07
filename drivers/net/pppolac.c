@@ -220,6 +220,14 @@ static int pppolac_connect(struct socket *sock, struct sockaddr *useraddr,
 	error = -EBUSY;
 	if (udp_sk(sk_udp)->encap_type || sk_udp->sk_user_data)
 		goto out;
+	if (!sk_udp->sk_bound_dev_if) {
+		struct dst_entry *dst = sk_dst_get(sk_udp);
+		error = -ENODEV;
+		if (!dst)
+			goto out;
+		sk_udp->sk_bound_dev_if = dst->dev->ifindex;
+		dst_release(dst);
+	}
 
 	po->chan.hdrlen = 12;
 	po->chan.private = sk_udp;
@@ -262,13 +270,12 @@ static int pppolac_release(struct socket *sock)
 
 	if (sk->sk_state != PPPOX_NONE) {
 		struct sock *sk_udp = (struct sock *)pppox_sk(sk)->chan.private;
-		lock_sock(sk_udp);
-
 		pppox_unbind_sock(sk);
+
+		lock_sock(sk_udp);
 		sk_udp->sk_user_data = NULL;
 		udp_sk(sk_udp)->encap_type = 0;
 		udp_sk(sk_udp)->encap_rcv = NULL;
-
 		release_sock(sk_udp);
 		sockfd_put(sk_udp->sk_socket);
 	}
