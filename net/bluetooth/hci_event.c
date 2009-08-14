@@ -1646,8 +1646,8 @@ static inline void hci_sync_conn_complete_evt(struct hci_dev *hdev, struct sk_bu
 		conn->type = SCO_LINK;
 	}
 
-	if (conn->out && (ev->status == 0x1c || ev->status == 0x1f) &&
-			conn->attempt < 2) {
+	if (conn->out && (ev->status == 0x1a || ev->status == 0x1c ||
+			ev->status == 0x1f) && conn->attempt < 2) {
 		conn->pkt_type = (hdev->esco_type & SCO_ESCO_MASK) |
 					(hdev->esco_type & EDR_ESCO_MASK);
 		hci_setup_sync(conn, conn->link->handle);
