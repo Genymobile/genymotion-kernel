@@ -37,6 +37,14 @@ struct android_usb_platform_data {
 	int nluns;
 };
 
+/* Platform data for "usb_mass_storage" driver.
+ * Contains values for the SC_INQUIRY SCSI command. */
+struct usb_mass_storage_platform_data {
+	char *vendor;
+	char *product;
+	int release;
+};
+
 extern void android_usb_set_connected(int on);
 
 #endif	/* __LINUX_USB_ANDROID_H */
