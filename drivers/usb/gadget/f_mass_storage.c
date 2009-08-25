@@ -2962,6 +2962,7 @@ int __init mass_storage_function_add(struct usb_composite_dev *cdev,
 	return 0;
 
 err_usb_add_function:
+	wake_lock_destroy(&the_fsg->wake_lock);
 	platform_driver_unregister(&fsg_platform_driver);
 err_platform_driver_register:
 	switch_dev_unregister(&the_fsg->sdev);
