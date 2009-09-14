@@ -137,6 +137,9 @@ ram_console_write(struct console *console, const char *s, unsigned int count)
 	if (buffer->size < ram_console_buffer_size)
 		buffer->size += count;
 	ram_console_update_header();
+	if (!strncmp(s, "!@#$ RAMCONSOLE_DISABLE $#@!", 28)) {
+		console->flags &= ~CON_ENABLED;
+	}
 }
 
 static struct console ram_console = {
