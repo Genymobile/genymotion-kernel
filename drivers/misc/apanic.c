@@ -459,6 +459,8 @@ static int apanic(struct notifier_block *this, unsigned long event,
 	if (!threads_offset)
 		threads_offset = ctx->mtd->writesize;
 
+	/* Disable ramconsole */
+	printk(KERN_EMERG "!@#$ RAMCONSOLE_DISABLE $#@!");
 	log_buf_clear();
 	show_state_filter(0);
 	threads_len = apanic_write_console(ctx->mtd, threads_offset);
