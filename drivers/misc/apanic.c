@@ -36,6 +36,7 @@
 #include <linux/proc_fs.h>
 #include <linux/mutex.h>
 #include <linux/workqueue.h>
+#include <linux/preempt.h>
 
 struct panic_header {
 	u32 magic;
@@ -50,6 +51,8 @@ struct panic_header {
 	u32 threads_offset;
 	u32 threads_length;
 };
+
+#define CHECK_BB	0
 
 struct apanic_data {
 	struct mtd_info		*mtd;
@@ -326,7 +329,7 @@ static int apanic_writeflashpage(struct mtd_info *mtd, loff_t to,
 {
 	int rc;
 	size_t wlen;
-	int panic = in_interrupt();
+	int panic = in_interrupt() | in_atomic();
 
 	if (panic && !mtd->panic_write) {
 		printk(KERN_EMERG "%s: No panic_write available\n", __func__);
@@ -381,6 +384,7 @@ static int apanic_write_console(struct mtd_info *mtd, unsigned int off)
 			break;
 		if (rc != mtd->writesize)
 			memset(ctx->bounce + rc, 0, mtd->writesize - rc);
+#if CHECK_BB
 check_badblock:
 		rc = mtd->block_isbad(mtd, off);
 		if (rc < 0) {
@@ -401,6 +405,7 @@ check_badblock:
 			}
 			goto check_badblock;
 		}
+#endif
 
 		rc2 = apanic_writeflashpage(mtd, off, ctx->bounce);
 		if (rc2 <= 0) {
@@ -431,6 +436,10 @@ static int apanic(struct notifier_block *this, unsigned long event,
 	if (in_panic)
 		return NOTIFY_DONE;
 	in_panic = 1;
+#ifdef CONFIG_PREEMPT
+	/* Ensure that cond_resched() won't try to preempt anybody */
+	add_preempt_count(PREEMPT_ACTIVE);
+#endif
 
 	if (!ctx->mtd)
 		goto out;
@@ -493,6 +502,9 @@ static int apanic(struct notifier_block *this, unsigned long event,
 	printk(KERN_EMERG "apanic: Panic dump sucessfully written to flash\n");
 
  out:
+#ifdef CONFIG_PREEMPT
+	sub_preempt_count(PREEMPT_ACTIVE);
+#endif
 	in_panic = 0;
 	return NOTIFY_DONE;
 }
@@ -515,7 +527,7 @@ static int panic_dbg_set(void *data, u64 val)
 
 DEFINE_SIMPLE_ATTRIBUTE(panic_dbg_fops, panic_dbg_get, panic_dbg_set, "%llu\n");
 
-void __init apanic_init(void)
+int __init apanic_init(void)
 {
 	register_mtd_user(&mtd_panic_notifier);
 	atomic_notifier_chain_register(&panic_notifier_list, &panic_blk);
@@ -525,6 +537,7 @@ void __init apanic_init(void)
 	INIT_WORK(&proc_removal_work, apanic_remove_proc_work);
 	printk(KERN_INFO "Android kernel panic handler initialized (bind=%s)\n",
 	       CONFIG_APANIC_PLABEL);
+	return 0;
 }
 
 module_init(apanic_init);
