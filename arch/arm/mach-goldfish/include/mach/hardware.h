@@ -36,6 +36,7 @@
 #define GOLDFISH_PDEV_BUS_BASE      (0x1000)
 #define GOLDFISH_PDEV_BUS_END       (0x100)
 
+#define GOLDFISH_TTY_BASE       (0x2000)
 #define GOLDFISH_TIMER_BASE     (0x3000)
 
 /* macro to get at IO space when running virtually */
