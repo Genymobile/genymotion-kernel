@@ -81,7 +81,7 @@ static void set_bb(unsigned int block, unsigned int *bbt)
 	apanic_good_blocks--;
 }
 
-static char get_bb(unsigned int block, unsigned int *bbt)
+static unsigned int get_bb(unsigned int block, unsigned int *bbt)
 {
 	unsigned int flag;
 
@@ -111,13 +111,13 @@ static void scan_bbt(struct mtd_info *mtd, unsigned int *bbt)
 	}
 }
 
+#define APANIC_INVALID_OFFSET 0xFFFFFFFF
+
 static unsigned int phy_offset(struct mtd_info *mtd, unsigned int offset)
 {
 	unsigned int logic_block = offset>>(mtd->erasesize_shift);
 	unsigned int phy_block;
 	unsigned good_block = 0;
-
-	BUG_ON(logic_block + 1 > apanic_good_blocks);
 
 	for (phy_block = 0; phy_block < apanic_erase_blocks; phy_block++) {
 		if (!get_bb(phy_block, apanic_bbt))
@@ -125,6 +125,9 @@ static unsigned int phy_offset(struct mtd_info *mtd, unsigned int offset)
 		if (good_block == (logic_block + 1))
 			break;
 	}
+
+	if (good_block != (logic_block + 1))
+		return APANIC_INVALID_OFFSET;
 
 	return offset + ((phy_block-logic_block)<<mtd->erasesize_shift);
 }
@@ -178,6 +181,13 @@ static int apanic_proc_read(char *buffer, char **start, off_t offset,
 	page_no = (file_offset + offset) / ctx->mtd->writesize;
 	page_offset = (file_offset + offset) % ctx->mtd->writesize;
 
+
+	if (phy_offset(ctx->mtd, (page_no * ctx->mtd->writesize))
+		== APANIC_INVALID_OFFSET) {
+		pr_err("apanic: reading an invalid address\n");
+		mutex_unlock(&drv_mutex);
+		return -EINVAL;
+	}
 	rc = ctx->mtd->read(ctx->mtd,
 		phy_offset(ctx->mtd, (page_no * ctx->mtd->writesize)),
 		ctx->mtd->writesize,
@@ -296,6 +306,11 @@ static void mtd_panic_notify_add(struct mtd_info *mtd)
 	alloc_bbt(mtd, apanic_bbt);
 	scan_bbt(mtd, apanic_bbt);
 
+	if (apanic_good_blocks == 0) {
+		printk(KERN_ERR "apanic: no any good blocks?!\n");
+		goto out_err;
+	}
+
 	rc = mtd->read(mtd, phy_offset(mtd, 0), mtd->writesize,
 			&len, ctx->bounce);
 	if (rc && rc == -EBADMSG) {
@@ -397,6 +412,10 @@ static int apanic_writeflashpage(struct mtd_info *mtd, loff_t to,
 	}
 
 	to = phy_offset(mtd, to);
+	if (to == APANIC_INVALID_OFFSET) {
+		printk(KERN_EMERG "apanic: write to invalid address\n");
+		return 0;
+	}
 
 	if (panic)
 		rc = mtd->panic_write(mtd, to, mtd->writesize, &wlen, buf);
@@ -448,7 +467,7 @@ static int apanic_write_console(struct mtd_info *mtd, unsigned int off)
 		if (rc2 <= 0) {
 			printk(KERN_EMERG
 			       "apanic: Flash write failed (%d)\n", rc2);
-			return rc2;
+			return idx;
 		}
 		if (!last_chunk)
 			idx += rc2;
@@ -477,6 +496,7 @@ static int apanic(struct notifier_block *this, unsigned long event,
 	/* Ensure that cond_resched() won't try to preempt anybody */
 	add_preempt_count(PREEMPT_ACTIVE);
 #endif
+	touch_softlockup_watchdog();
 
 	if (!ctx->mtd)
 		goto out;
