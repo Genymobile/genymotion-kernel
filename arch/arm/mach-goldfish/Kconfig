@@ -6,6 +6,13 @@ config MACH_GOLDFISH
 	bool "Goldfish (Virtual Platform)"
 	select CPU_ARM926T
 
+config MACH_GOLDFISH_ARMV7
+	bool "Goldfish ARMv7 (Virtual Platform)"
+	select CPU_V7
+        select VFP
+        select VFPv3
+        select NEON
+
 endmenu
 
 endif

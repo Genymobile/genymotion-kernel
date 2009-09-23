@@ -208,7 +208,6 @@ config ARCH_AAEC2000
 
 config ARCH_GOLDFISH
 	bool "Goldfish"
-	select CPU_ARM926T
 	select GENERIC_TIME
 	select GENERIC_CLOCKEVENTS
 	help

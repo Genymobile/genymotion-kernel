@@ -6,4 +6,4 @@
 
 obj-y				:= pdev_bus.o timer.o switch.o audio.o pm.o
 obj-$(CONFIG_MACH_GOLDFISH)	+= board-goldfish.o
-
+obj-$(CONFIG_MACH_GOLDFISH_ARMV7)	+= board-goldfish.o
