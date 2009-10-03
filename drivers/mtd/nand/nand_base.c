@@ -2524,11 +2524,13 @@ static void nand_panic_wait(struct mtd_info *mtd)
 	struct nand_chip *chip = mtd->priv;
 	int i;
 
-	for (i = 0; i < 2000; i++) {
-		if (chip->dev_ready(mtd))
-			break;
-		mdelay(10);
-	}
+	if (chip->state != FL_READY)
+		for (i = 0; i < 40; i++) {
+			if (chip->dev_ready(mtd))
+				break;
+			mdelay(10);
+		}
+	chip->state = FL_READY;
 }
 
 static int nand_panic_write(struct mtd_info *mtd, loff_t to, size_t len,
