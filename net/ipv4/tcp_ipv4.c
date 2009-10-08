@@ -1879,8 +1879,14 @@ restart:
 
 			sk->sk_err = ETIMEDOUT;
 			sk->sk_error_report(sk);
+
+			sock_hold(sk);
 			spin_unlock_bh(lock);
+			bh_lock_sock(sk);
 			tcp_done(sk);
+			bh_unlock_sock(sk);
+			sock_put(sk);
+
 			goto restart;
 		}
 		spin_unlock_bh(lock);
