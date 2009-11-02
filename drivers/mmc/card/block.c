@@ -41,6 +41,8 @@
 
 #include "queue.h"
 
+MODULE_ALIAS("mmc:block");
+
 /*
  * max 8 partitions per card
  */
@@ -145,7 +147,8 @@ struct mmc_blk_request {
 static u32 mmc_sd_num_wr_blocks(struct mmc_card *card)
 {
 	int err;
-	__be32 blocks;
+	u32 result;
+	__be32 *blocks;
 
 	struct mmc_request mrq;
 	struct mmc_command cmd;
@@ -197,14 +200,21 @@ static u32 mmc_sd_num_wr_blocks(struct mmc_card *card)
 	mrq.cmd = &cmd;
 	mrq.data = &data;
 
-	sg_init_one(&sg, &blocks, 4);
+	blocks = kmalloc(4, GFP_KERNEL);
+	if (!blocks)
+		return (u32)-1;
+
+	sg_init_one(&sg, blocks, 4);
 
 	mmc_wait_for_req(card->host, &mrq);
 
-	if (cmd.error || data.error)
-		return (u32)-1;
+	result = ntohl(*blocks);
+	kfree(blocks);
 
-	return ntohl(blocks);
+	if (cmd.error || data.error)
+		result = (u32)-1;
+
+	return result;
 }
 
 static u32 get_card_status(struct mmc_card *card, struct request *req)
@@ -286,6 +296,14 @@ static int mmc_blk_issue_rq(struct mmc_queue *mq, struct request *req)
 		brq.data.blocks = req->nr_sectors;
 
 		/*
+		 * The block layer doesn't support all sector count
+		 * restrictions, so we need to be prepared for too big
+		 * requests.
+		 */
+		if (brq.data.blocks > card->host->max_blk_count)
+			brq.data.blocks = card->host->max_blk_count;
+
+		/*
 		 * After a read error, we redo the request one sector at a time
 		 * in order to accurately determine which sectors can be read
 		 * successfully.
@@ -360,6 +378,8 @@ static int mmc_blk_issue_rq(struct mmc_queue *mq, struct request *req)
 				continue;
 			}
 			status = get_card_status(card, req);
+		} else if (disable_multi == 1) {
+			disable_multi = 0;
 		}
 
 		if (brq.cmd.error) {

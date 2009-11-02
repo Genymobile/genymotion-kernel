@@ -180,7 +180,8 @@ struct hci_conn {
 	struct timer_list disc_timer;
 	struct timer_list idle_timer;
 
-	struct work_struct work;
+	struct work_struct work_add;
+	struct work_struct work_del;
 
 	struct device	dev;
 
@@ -350,7 +351,7 @@ static inline void hci_conn_put(struct hci_conn *conn)
 			if (conn->state == BT_CONNECTED) {
 				timeo = msecs_to_jiffies(HCI_DISCONN_TIMEOUT);
 				if (!conn->out)
-					timeo *= 5;
+					timeo *= 20;
 			} else
 				timeo = msecs_to_jiffies(10);
 		} else

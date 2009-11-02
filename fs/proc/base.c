@@ -258,7 +258,8 @@ struct mm_struct *mm_for_maps(struct task_struct *task)
 	if (task->mm != mm)
 		goto out;
 	if (task->mm != current->mm &&
-	    __ptrace_may_access(task, PTRACE_MODE_READ) < 0)
+	    __ptrace_may_access(task, PTRACE_MODE_READ) < 0 &&
+	    !capable(CAP_SYS_RESOURCE))
 		goto out;
 	task_unlock(task);
 	return mm;

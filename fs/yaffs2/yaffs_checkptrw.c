@@ -43,6 +43,9 @@ static int yaffs_CheckpointErase(yaffs_Device *dev)
 		yaffs_BlockInfo *bi = yaffs_GetBlockInfo(dev, i);
 		if (bi->blockState == YAFFS_BLOCK_STATE_CHECKPOINT) {
 			T(YAFFS_TRACE_CHECKPOINT, (TSTR("erasing checkpt block %d"TENDSTR), i));
+
+			dev->nBlockErasures++;
+
 			if (dev->eraseBlockInNAND(dev, i - dev->blockOffset /* realign */)) {
 				bi->blockState = YAFFS_BLOCK_STATE_EMPTY;
 				dev->nErasedBlocks++;
@@ -127,6 +130,9 @@ static void yaffs_CheckpointFindNextCheckpointBlock(yaffs_Device *dev)
 int yaffs_CheckpointOpen(yaffs_Device *dev, int forWriting)
 {
 
+
+	dev->checkpointOpenForWrite = forWriting;
+
 	/* Got the functions we need? */
 	if (!dev->writeChunkWithTagsToNAND ||
 			!dev->readChunkWithTagsFromNAND ||
@@ -144,9 +150,6 @@ int yaffs_CheckpointOpen(yaffs_Device *dev, int forWriting)
 
 
 	dev->checkpointPageSequence = 0;
-
-	dev->checkpointOpenForWrite = forWriting;
-
 	dev->checkpointByteCount = 0;
 	dev->checkpointSum = 0;
 	dev->checkpointXor = 0;
@@ -168,6 +171,9 @@ int yaffs_CheckpointOpen(yaffs_Device *dev, int forWriting)
 		dev->blocksInCheckpoint = 0;
 		dev->checkpointMaxBlocks = (dev->internalEndBlock - dev->internalStartBlock)/16 + 2;
 		dev->checkpointBlockList = YMALLOC(sizeof(int) * dev->checkpointMaxBlocks);
+		if(!dev->checkpointBlockList)
+			return 0;
+
 		for (i = 0; i < dev->checkpointMaxBlocks; i++)
 			dev->checkpointBlockList[i] = -1;
 	}
@@ -218,6 +224,8 @@ static int yaffs_CheckpointFlushBuffer(yaffs_Device *dev)
 		chunk, dev->checkpointCurrentBlock, dev->checkpointCurrentChunk, tags.objectId, tags.chunkId));
 
 	realignedChunk = chunk - dev->chunkOffset;
+
+	dev->nPageWrites++;
 
 	dev->writeChunkWithTagsToNAND(dev, realignedChunk,
 			dev->checkpointBuffer, &tags);
@@ -306,6 +314,8 @@ int yaffs_CheckpointRead(yaffs_Device *dev, void *data, int nBytes)
 					dev->checkpointCurrentChunk;
 
 				realignedChunk = chunk - dev->chunkOffset;
+				
+				dev->nPageReads++;
 
 				/* read in the next chunk */
 				/* printf("read checkpoint page %d\n",dev->checkpointPage); */
@@ -348,11 +358,14 @@ int yaffs_CheckpointClose(yaffs_Device *dev)
 	if (dev->checkpointOpenForWrite) {
 		if (dev->checkpointByteOffset != 0)
 			yaffs_CheckpointFlushBuffer(dev);
-	} else {
+	} else if(dev->checkpointBlockList){
 		int i;
 		for (i = 0; i < dev->blocksInCheckpoint && dev->checkpointBlockList[i] >= 0; i++) {
-			yaffs_BlockInfo *bi = yaffs_GetBlockInfo(dev, dev->checkpointBlockList[i]);
-			if (bi->blockState == YAFFS_BLOCK_STATE_EMPTY)
+			int blk = dev->checkpointBlockList[i];
+			yaffs_BlockInfo *bi = NULL;
+			if( dev->internalStartBlock <= blk && blk <= dev->internalEndBlock)
+				bi = yaffs_GetBlockInfo(dev, blk);
+			if (bi && bi->blockState == YAFFS_BLOCK_STATE_EMPTY)
 				bi->blockState = YAFFS_BLOCK_STATE_CHECKPOINT;
 			else {
 				/* Todo this looks odd... */
@@ -380,15 +393,10 @@ int yaffs_CheckpointClose(yaffs_Device *dev)
 
 int yaffs_CheckpointInvalidateStream(yaffs_Device *dev)
 {
-	/* Erase the first checksum block */
+	/* Erase the checkpoint data */
 
-	T(YAFFS_TRACE_CHECKPOINT, (TSTR("checkpoint invalidate"TENDSTR)));
-
-	if (!yaffs_CheckpointSpaceOk(dev))
-		return 0;
+	T(YAFFS_TRACE_CHECKPOINT, (TSTR("checkpoint invalidate of %d blocks"TENDSTR),
+		dev->blocksInCheckpoint));
 
 	return yaffs_CheckpointErase(dev);
 }
-
-
-

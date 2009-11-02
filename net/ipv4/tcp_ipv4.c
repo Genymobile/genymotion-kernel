@@ -1865,6 +1865,7 @@ void tcp_v4_nuke_addr(__u32 saddr)
 		struct sock *sk;
 		spinlock_t *lock = inet_ehash_lockp(&tcp_hashinfo, bucket);
 
+restart:
 		spin_lock_bh(lock);
 		sk_nulls_for_each(sk, node, &tcp_hashinfo.ehash[bucket].chain) {
 			struct inet_sock *inet = inet_sk(sk);
@@ -1876,9 +1877,20 @@ void tcp_v4_nuke_addr(__u32 saddr)
 			if (sock_flag(sk, SOCK_DEAD))
 				continue;
 
+			sock_hold(sk);
+			spin_unlock_bh(lock);
+
+			local_bh_disable();
+			bh_lock_sock(sk);
 			sk->sk_err = ETIMEDOUT;
 			sk->sk_error_report(sk);
+
 			tcp_done(sk);
+			bh_unlock_sock(sk);
+			local_bh_enable();
+			sock_put(sk);
+
+			goto restart;
 		}
 		spin_unlock_bh(lock);
 	}
@@ -2493,4 +2505,3 @@ EXPORT_SYMBOL(tcp_proc_register);
 EXPORT_SYMBOL(tcp_proc_unregister);
 #endif
 EXPORT_SYMBOL(sysctl_tcp_low_latency);
-
