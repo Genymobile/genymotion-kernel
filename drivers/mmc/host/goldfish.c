@@ -132,10 +132,7 @@ struct goldfish_mmc_host {
 	unsigned		dma_done:1;
 	unsigned		dma_in_use:1;
 
-	struct work_struct	switch_work;
-	int			switch_last_state;
-
-	uint32_t			reg_base;
+	uint32_t		reg_base;
 };
 
 static inline int
@@ -347,42 +344,14 @@ static irqreturn_t goldfish_mmc_irq(int irq, void *dev_id)
 		goldfish_mmc_end_of_data(host, host->data);
 	}
 	if (state_changed) {
-		schedule_work(&host->switch_work);
+		u32 state = GOLDFISH_MMC_READ(host, MMC_STATE);
+		pr_info("%s: Card detect now %d\n", __func__,
+			(state & MMC_STATE_INSERTED));
+		mmc_detect_change(host->mmc, 0);
 	}
 
 	return IRQ_HANDLED;
 }
-
-
-static void goldfish_mmc_switch_handler(struct work_struct *work)
-{
-/*
-	struct goldfish_mmc_host *host = container_of(work, struct goldfish_mmc_host, switch_work);
-	struct mmc_card *card;
-	static int complained = 0;
-	int cards = 0, cover_open;
-
-	cover_open = goldfish_mmc_cover_is_open(host);
-	if (cover_open != host->switch_last_state) {
-		kobject_uevent(&host->dev->kobj, KOBJ_CHANGE);
-		host->switch_last_state = cover_open;
-	}
-	mmc_detect_change(host->mmc, 0);
-	list_for_each_entry(card, &host->mmc->cards, node) {
-		if (mmc_card_present(card))
-			cards++;
-	}
-	if (goldfish_mmc_cover_is_open(host)) {
-		if (!complained) {
-			dev_info(mmc_dev(host->mmc), "cover is open\n");
-			complained = 1;
-		}
-	} else {
-		complained = 0;
-	}
-*/
-}
-
 
 static void
 goldfish_mmc_prepare_data(struct goldfish_mmc_host *host, struct mmc_request *req)
@@ -533,9 +502,6 @@ static int __init goldfish_mmc_probe(struct platform_device *pdev)
 	GOLDFISH_MMC_WRITE(host, MMC_INT_ENABLE, 
 		MMC_STAT_END_OF_CMD | MMC_STAT_END_OF_DATA | MMC_STAT_STATE_CHANGE |
 		MMC_STAT_CMD_TIMEOUT);
-
-	INIT_WORK(&host->switch_work, goldfish_mmc_switch_handler);
-
 
 	mmc_add_host(mmc);
 
