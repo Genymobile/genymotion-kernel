@@ -74,7 +74,7 @@ static void goldfish_pdev_worker(struct work_struct *work)
 		else {
 			printk("goldfish_pdev_worker registered %s\n", pos->pdev.name);
 		}
-		list_add(&pos->list, &pdev_bus_registered_devices);
+		list_add_tail(&pos->list, &pdev_bus_registered_devices);
 	}
 }
 
@@ -95,7 +95,7 @@ static void goldfish_pdev_remove(void)
 	list_for_each_entry_safe(pos, n, &pdev_bus_registered_devices, list) {
 		if(pos->resources[0].start == base) {
 			list_del(&pos->list);
-			list_add(&pos->list, &pdev_bus_removed_devices);
+			list_add_tail(&pos->list, &pdev_bus_removed_devices);
 			schedule_work(&pdev_bus_worker);
 			return;
 		}
@@ -142,7 +142,7 @@ static int goldfish_new_pdev(void)
 	}
 
 	printk("goldfish_new_pdev %s at %x irq %d\n", name, base, irq);
-	list_add(&dev->list, &pdev_bus_new_devices);
+	list_add_tail(&dev->list, &pdev_bus_new_devices);
 	schedule_work(&pdev_bus_worker);
 	
 	return 0;
