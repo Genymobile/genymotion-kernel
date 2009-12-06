@@ -99,6 +99,7 @@ enum {
 	MMC_STAT_END_OF_CMD     = 1U << 0,
 	MMC_STAT_END_OF_DATA    = 1U << 1,
 	MMC_STAT_STATE_CHANGE   = 1U << 2,
+	MMC_STAT_CMD_TIMEOUT    = 1U << 3,
 
 	/* MMC_STATE bits */
 	MMC_STATE_INSERTED     = 1U << 0,
@@ -327,6 +328,13 @@ static irqreturn_t goldfish_mmc_irq(int irq, void *dev_id)
 		if (status & MMC_STAT_STATE_CHANGE) {
 			state_changed = 1;
 		}
+
+                if (status & MMC_STAT_CMD_TIMEOUT) {
+                    struct mmc_request *mrq = host->mrq;
+                    mrq->cmd->error = -ETIMEDOUT;
+		    host->mrq = NULL;
+		    mmc_request_done(host->mmc, mrq);
+                }
 	}
 
 	if (end_command) {
@@ -483,7 +491,7 @@ static int __init goldfish_mmc_probe(struct platform_device *pdev)
 	host->mmc = mmc;	
 	host->reg_base = IO_ADDRESS(res->start - IO_START);
 	host->virt_base = dma_alloc_writecombine(&pdev->dev, BUFFER_SIZE,
-												&buf_addr, GFP_KERNEL);
+						 &buf_addr, GFP_KERNEL);
 	if(host->virt_base == 0) {
 		ret = -EBUSY;
 		goto dma_alloc_failed;
@@ -521,18 +529,15 @@ static int __init goldfish_mmc_probe(struct platform_device *pdev)
 	if (ret)
 		dev_warn(mmc_dev(host->mmc), "Unable to create sysfs attributes\n");
 
-	mmc_add_host(mmc);
-
 	GOLDFISH_MMC_WRITE(host, MMC_SET_BUFFER, host->phys_base);	
 	GOLDFISH_MMC_WRITE(host, MMC_INT_ENABLE, 
-			MMC_STAT_END_OF_CMD | MMC_STAT_END_OF_DATA | MMC_STAT_STATE_CHANGE 
-			);
-
-	// we start with the card present
-	kobject_uevent(&host->dev->kobj, KOBJ_CHANGE);
-	mmc_detect_change(host->mmc, 0);
+		MMC_STAT_END_OF_CMD | MMC_STAT_END_OF_DATA | MMC_STAT_STATE_CHANGE |
+		MMC_STAT_CMD_TIMEOUT);
 
 	INIT_WORK(&host->switch_work, goldfish_mmc_switch_handler);
+
+
+	mmc_add_host(mmc);
 
 	return 0;
 
