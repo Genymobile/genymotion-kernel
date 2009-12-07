@@ -292,25 +292,11 @@ static irqreturn_t goldfish_mmc_irq(int irq, void *dev_id)
 {
 	struct goldfish_mmc_host * host = (struct goldfish_mmc_host *)dev_id;
 	u16 status;
-	int end_command;
-	int end_transfer;
-	int transfer_error;
-	int state_changed;
-
-	if (host->cmd == NULL && host->data == NULL) {
-		status = GOLDFISH_MMC_READ(host, MMC_INT_STATUS);
-		dev_info(mmc_dev(host->mmc),"spurious irq 0x%04x\n", status);
-		if (status != 0) {
-			GOLDFISH_MMC_WRITE(host, MMC_INT_STATUS, status);
-			GOLDFISH_MMC_WRITE(host, MMC_INT_ENABLE, 0);
-		}
-		return IRQ_HANDLED;
-	}
-
-	end_command = 0;
-	end_transfer = 0;
-	transfer_error = 0;
-	state_changed = 0;
+	int end_command = 0;
+	int end_transfer = 0;
+	int transfer_error = 0;
+	int state_changed = 0;
+	int cmd_timeout = 0;
 
 	while ((status = GOLDFISH_MMC_READ(host, MMC_INT_STATUS)) != 0) {
 		GOLDFISH_MMC_WRITE(host, MMC_INT_STATUS, status);
@@ -327,11 +313,15 @@ static irqreturn_t goldfish_mmc_irq(int irq, void *dev_id)
 		}
 
                 if (status & MMC_STAT_CMD_TIMEOUT) {
-                    struct mmc_request *mrq = host->mrq;
-                    mrq->cmd->error = -ETIMEDOUT;
-		    host->mrq = NULL;
-		    mmc_request_done(host->mmc, mrq);
+			cmd_timeout = 1;
                 }
+	}
+
+	if (cmd_timeout) {
+		struct mmc_request *mrq = host->mrq;
+		mrq->cmd->error = -ETIMEDOUT;
+		host->mrq = NULL;
+		mmc_request_done(host->mmc, mrq);
 	}
 
 	if (end_command) {
@@ -348,6 +338,16 @@ static irqreturn_t goldfish_mmc_irq(int irq, void *dev_id)
 		pr_info("%s: Card detect now %d\n", __func__,
 			(state & MMC_STATE_INSERTED));
 		mmc_detect_change(host->mmc, 0);
+	}
+
+	if (!end_command && !end_transfer &&
+	    !transfer_error && !state_changed && !cmd_timeout) {
+		status = GOLDFISH_MMC_READ(host, MMC_INT_STATUS);
+		dev_info(mmc_dev(host->mmc),"spurious irq 0x%04x\n", status);
+		if (status != 0) {
+			GOLDFISH_MMC_WRITE(host, MMC_INT_STATUS, status);
+			GOLDFISH_MMC_WRITE(host, MMC_INT_ENABLE, 0);
+		}
 	}
 
 	return IRQ_HANDLED;
