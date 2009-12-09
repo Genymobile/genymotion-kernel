@@ -313,6 +313,7 @@ static irqreturn_t goldfish_mmc_irq(int irq, void *dev_id)
 		}
 
                 if (status & MMC_STAT_CMD_TIMEOUT) {
+			end_command = 0;
 			cmd_timeout = 1;
                 }
 	}
