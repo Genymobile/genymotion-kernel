@@ -118,6 +118,11 @@ mflags-$(CONFIG_X86_GENERICARCH):= -Iarch/x86/include/asm/mach-generic
 fcore-$(CONFIG_X86_GENERICARCH)	+= arch/x86/mach-generic/
 mcore-$(CONFIG_X86_GENERICARCH)	:= arch/x86/mach-default/
 
+# Goldfish virtual platform support
+mflags-$(CONFIG_X86_GOLDFISH):= -Iarch/x86/include/asm/mach-goldfish
+fcore-$(CONFIG_X86_GOLDFISH)	+= arch/x86/mach-goldfish/
+mcore-$(CONFIG_X86_GOLDFISH)	:= arch/x86/mach-default/
+
 # default subarch .h files
 mflags-y += -Iarch/x86/include/asm/mach-default
 
