@@ -27,7 +27,7 @@
 
 
 struct goldfish_battery_data {
-	uint32_t reg_base;
+	void __iomem *reg_base;
 	int irq;
 	spinlock_t lock;
 
@@ -176,7 +176,11 @@ static int goldfish_battery_probe(struct platform_device *pdev)
 		ret = -ENODEV;
 		goto err_no_io_base;
 	}
-	data->reg_base = IO_ADDRESS(r->start - IO_START);
+#ifdef CONFIG_ARM
+	data->reg_base = (void __iomem *)IO_ADDRESS(r->start - IO_START);
+#elif	CONFIG_X86
+	data->reg_base = ioremap(r->start, r->end - r->start + 1);
+#endif
 
 	data->irq = platform_get_irq(pdev, 0);
 	if (data->irq < 0) {

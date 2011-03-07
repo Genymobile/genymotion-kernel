@@ -46,7 +46,7 @@ static uint32_t goldfish_nand_cmd(struct mtd_info *mtd, enum nand_cmd cmd,
 	writel((uint32_t)(addr >> 32), base + NAND_ADDR_HIGH);
 	writel((uint32_t)addr, base + NAND_ADDR_LOW);
 	writel(len, base + NAND_TRANSFER_SIZE);
-	writel(ptr, base + NAND_DATA);
+	writel((unsigned long)ptr, base + NAND_DATA);
 	writel(cmd, base + NAND_COMMAND);
 	rv = readl(base + NAND_RESULT);
 	spin_unlock_irqrestore(&nand->lock, irq_flags);
