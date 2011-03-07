@@ -131,6 +131,34 @@ KBUILD_CFLAGS += -fno-asynchronous-unwind-tables
 KBUILD_CFLAGS += $(call cc-option,-mno-sse -mno-mmx -mno-sse2 -mno-3dnow,)
 KBUILD_CFLAGS += $(call cc-option,-mno-avx,)
 
+###
+# Sub architecture support
+# fcore-y is linked before mcore-y files.
+
+# Default subarch .c files
+mcore-y  := arch/x86/mach-default/
+
+# Voyager subarch support
+mflags-$(CONFIG_X86_VOYAGER)	:= -Iarch/x86/include/asm/mach-voyager
+mcore-$(CONFIG_X86_VOYAGER)	:= arch/x86/mach-voyager/
+
+# generic subarchitecture
+mflags-$(CONFIG_X86_GENERICARCH):= -Iarch/x86/include/asm/mach-generic
+fcore-$(CONFIG_X86_GENERICARCH)	+= arch/x86/mach-generic/
+mcore-$(CONFIG_X86_GENERICARCH)	:= arch/x86/mach-default/
+
+# Goldfish virtual platform support
+mflags-$(CONFIG_X86_GOLDFISH):= -Iarch/x86/include/asm/mach-goldfish
+fcore-$(CONFIG_X86_GOLDFISH)	+= arch/x86/mach-goldfish/
+mcore-$(CONFIG_X86_GOLDFISH)	:= arch/x86/mach-default/
+
+# default subarch .h files
+mflags-y += -Iarch/x86/include/asm/mach-default
+
+# 64 bit does not support subarch support - clear sub arch variables
+fcore-$(CONFIG_X86_64)  :=
+mcore-$(CONFIG_X86_64)  :=
+
 KBUILD_CFLAGS += $(mflags-y)
 KBUILD_AFLAGS += $(mflags-y)
 
