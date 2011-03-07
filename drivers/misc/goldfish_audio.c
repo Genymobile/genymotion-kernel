@@ -1,4 +1,4 @@
-/* arch/arm/mach-goldfish/audio.c
+/* drivers/misc/goldfish_audio.c
 **
 ** Copyright (C) 2007 Google, Inc.
 **
@@ -25,7 +25,9 @@
 #include <asm/types.h>
 #include <asm/io.h>
 #include <asm/uaccess.h>
-
+#ifdef	CONFIG_X86
+#include <asm/mtrr.h>
+#endif
 
 MODULE_AUTHOR("Google, Inc.");
 MODULE_DESCRIPTION("Android QEMU Audio Driver");
@@ -33,7 +35,7 @@ MODULE_LICENSE("GPL");
 MODULE_VERSION("1.0");
 
 struct goldfish_audio {
-	uint32_t reg_base;
+	char __iomem *reg_base;  
 	int irq;
 	spinlock_t lock;
 	wait_queue_head_t wait;
@@ -268,7 +270,7 @@ static int goldfish_audio_probe(struct platform_device *pdev)
 	struct goldfish_audio *data;
 	dma_addr_t buf_addr;
 
-printk("goldfish_audio_probe\n");
+	printk("goldfish_audio_probe\n");
 	data = kzalloc(sizeof(*data), GFP_KERNEL);
 	if(data == NULL) {
 		ret = -ENOMEM;
@@ -284,21 +286,31 @@ printk("goldfish_audio_probe\n");
 		ret = -ENODEV;
 		goto err_no_io_base;
 	}
-	data->reg_base = IO_ADDRESS(r->start - IO_START);
-
+#ifdef CONFIG_ARM
+	data->reg_base = (char __iomem *)IO_ADDRESS(r->start - IO_START);
+#elif CONFIG_X86
+	data->reg_base = ioremap(r->start, PAGE_SIZE);
+#endif
 	data->irq = platform_get_irq(pdev, 0);
 	if(data->irq < 0) {
 		printk("platform_get_irq failed\n");
 		ret = -ENODEV;
 		goto err_no_irq;
 	}
-
+#ifdef CONFIG_ARM
 	data->buffer_virt = dma_alloc_writecombine(&pdev->dev, COMBINED_BUFFER_SIZE,
-												&buf_addr, GFP_KERNEL);
+							&buf_addr, GFP_KERNEL);
+#elif   CONFIG_X86
+	data->buffer_virt = dma_alloc_coherent(NULL, COMBINED_BUFFER_SIZE,
+							&buf_addr, GFP_KERNEL);
+#endif
 	if(data->buffer_virt == 0) {
 		ret = -ENOMEM;
 		goto err_alloc_write_buffer_failed;
 	}
+#ifdef	CONFIG_X86
+	mtrr_add(buf_addr, COMBINED_BUFFER_SIZE, MTRR_TYPE_WRBACK, 1);
+#endif
 	data->buffer_phys = buf_addr;
 	data->write_buffer1 = data->buffer_virt;
 	data->write_buffer2 = data->buffer_virt + WRITE_BUFFER_SIZE;
@@ -327,9 +339,16 @@ printk("goldfish_audio_probe\n");
 
 err_misc_register_failed:
 err_request_irq_failed:
+#ifdef  CONFIG_ARM
 	dma_free_writecombine(&pdev->dev, COMBINED_BUFFER_SIZE, data->buffer_virt, data->buffer_phys);
+#elif   CONFIG_X86
+	dma_free_coherent(NULL, COMBINED_BUFFER_SIZE, data->buffer_virt, data->buffer_phys);
+#endif
 err_alloc_write_buffer_failed:
 err_no_irq:
+#ifdef  CONFIG_X86
+	iounmap(data->reg_base);
+#endif
 err_no_io_base:
 	kfree(data);
 err_data_alloc_failed:
@@ -342,7 +361,12 @@ static int goldfish_audio_remove(struct platform_device *pdev)
 
 	misc_deregister(&goldfish_audio_device);
 	free_irq(data->irq, data);
+#ifdef  CONFIG_ARM
 	dma_free_writecombine(&pdev->dev, COMBINED_BUFFER_SIZE, data->buffer_virt, data->buffer_phys);
+#elif   CONFIG_X86
+	dma_free_coherent(NULL, COMBINED_BUFFER_SIZE, data->buffer_virt, data->buffer_phys);
+	iounmap(data->reg_base);
+#endif
 	kfree(data);
 	audio_data = NULL;
 	return 0;
