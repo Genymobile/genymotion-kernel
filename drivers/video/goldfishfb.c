@@ -30,7 +30,11 @@
 #include <linux/android_power.h>
 #endif
 
+#ifdef	CONFIG_X86
+#include <asm/mtrr.h>
+#else
 #include <mach/hardware.h>
+#endif
 
 enum {
 	FB_GET_WIDTH        = 0x00,
@@ -48,7 +52,7 @@ enum {
 };
 
 struct goldfish_fb {
-	uint32_t reg_base;
+	void __iomem *reg_base;
 	int irq;
 	spinlock_t lock;
 	wait_queue_head_t wait;
@@ -208,7 +212,11 @@ static int goldfish_fb_probe(struct platform_device *pdev)
 		ret = -ENODEV;
 		goto err_no_io_base;
 	}
-	fb->reg_base = IO_ADDRESS(r->start - IO_START);
+#ifdef CONFIG_ARM
+	fb->reg_base = (void __iomem *)IO_ADDRESS(r->start - IO_START);
+#elif CONFIG_X86
+	fb->reg_base = ioremap(r->start, PAGE_SIZE);
+#endif
 
 	fb->irq = platform_get_irq(pdev, 0);
 	if(fb->irq < 0) {
@@ -237,6 +245,7 @@ static int goldfish_fb_probe(struct platform_device *pdev)
 	fb->fb.var.activate	= FB_ACTIVATE_NOW;
 	fb->fb.var.height	= readl(fb->reg_base + FB_GET_PHYS_HEIGHT);
 	fb->fb.var.width	= readl(fb->reg_base + FB_GET_PHYS_WIDTH);
+	fb->fb.var.pixclock	= 10000;
 
 	fb->fb.var.red.offset = 11;
 	fb->fb.var.red.length = 5;
@@ -246,13 +255,21 @@ static int goldfish_fb_probe(struct platform_device *pdev)
 	fb->fb.var.blue.length = 5;
 
 	framesize = width * height * 2 * 2;
+#ifdef CONFIG_ARM
 	fb->fb.screen_base = dma_alloc_writecombine(&pdev->dev, framesize,
 	                                            &fbpaddr, GFP_KERNEL);
+#elif	CONFIG_X86
+	fb->fb.screen_base = dma_alloc_coherent(NULL, framesize,
+						&fbpaddr, GFP_KERNEL);
+#endif
 	printk("allocating frame buffer %d * %d, got %p\n", width, height, fb->fb.screen_base);
 	if(fb->fb.screen_base == 0) {
 		ret = -ENOMEM;
 		goto err_alloc_screen_base_failed;
 	}
+#ifdef CONFIG_X86
+	mtrr_add(fbpaddr, framesize, MTRR_TYPE_WRBACK, 1);
+#endif
 	fb->fb.fix.smem_start = fbpaddr;
 	fb->fb.fix.smem_len = framesize;
 
@@ -284,9 +301,16 @@ err_register_framebuffer_failed:
 	free_irq(fb->irq, fb);
 err_request_irq_failed:
 err_fb_set_var_failed:
+#ifdef	CONFIG_ARM
 	dma_free_writecombine(&pdev->dev, framesize, fb->fb.screen_base, fb->fb.fix.smem_start);
+#elif	CONFIG_X86
+	dma_free_coherent(NULL, framesize, fb->fb.screen_base, fb->fb.fix.smem_start);
+#endif
 err_alloc_screen_base_failed:
 err_no_irq:
+#ifdef	CONFIG_X86
+	iounmap(fb->reg_base);
+#endif
 err_no_io_base:
 	kfree(fb);
 err_fb_alloc_failed:
@@ -305,8 +329,13 @@ static int goldfish_fb_remove(struct platform_device *pdev)
 #endif
 	unregister_framebuffer(&fb->fb);
 	free_irq(fb->irq, fb);
+#ifdef	CONFIG_ARM
 	dma_free_writecombine(&pdev->dev, framesize, fb->fb.screen_base, fb->fb.fix.smem_start);
 	kfree(fb);
+#elif	CONFIG_X86
+	dma_free_coherent(NULL, framesize, fb->fb.screen_base, fb->fb.fix.smem_start);
+	iounmap(fb->reg_base);
+#endif
 	return 0;
 }
 
