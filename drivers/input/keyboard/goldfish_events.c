@@ -21,7 +21,6 @@
 #include <linux/kernel.h>
 #include <linux/platform_device.h>
 
-#include <mach/hardware.h>
 #include <asm/irq.h>
 #include <asm/io.h>
 
@@ -39,7 +38,7 @@ enum {
 struct event_dev {
     struct input_dev *input;
     int irq;
-    unsigned addr;
+    void __iomem *addr;
     char name[0];
 };
 
@@ -61,7 +60,7 @@ static void events_import_bits(struct event_dev *edev, unsigned long bits[], uns
 	int i, j;
 	size_t size;
 	uint8_t val;
-	unsigned addr = edev->addr;
+	void __iomem *addr = edev->addr;
 	__raw_writel(PAGE_EVBITS | type, addr + REG_SET_PAGE);
 	size = __raw_readl(addr + REG_LEN) * 8;
 	if (size < count)
@@ -84,7 +83,7 @@ static int events_probe(struct platform_device *pdev)
     int i;
     int count;
     int irq;
-    unsigned addr;
+    void __iomem *addr;
     int ret;
     
     printk("*** events probe ***\n");
@@ -93,10 +92,10 @@ static int events_probe(struct platform_device *pdev)
     res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
     if(!input_dev || !res) goto fail;
 
-    addr = (unsigned) ioremap(res->start, 4096);
+    addr = ioremap(res->start, 4096);
     irq = platform_get_irq(pdev, 0);
 
-    printk("events_probe() addr=0x%08x irq=%d\n", addr, irq);
+    printk("events_probe() addr=0x%p irq=%d\n", addr, irq);
 
     if(!addr) goto fail;
     if(irq < 0) goto fail;

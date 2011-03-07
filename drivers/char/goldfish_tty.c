@@ -20,7 +20,10 @@
 #include <linux/tty.h>
 #include <linux/tty_flip.h>
 
+#ifdef CONFIG_ARM
 #include <mach/hardware.h>
+#endif
+
 #include <asm/io.h>
 
 enum {
@@ -39,7 +42,7 @@ enum {
 
 struct goldfish_tty {
 	spinlock_t lock;
-	uint32_t base;
+	void __iomem *base;
 	uint32_t irq;
 	int opencount;
 	struct tty_struct *tty;
@@ -56,9 +59,9 @@ static void goldfish_tty_do_write(int line, const char *buf, unsigned count)
 {
 	unsigned long irq_flags;
 	struct goldfish_tty *qtty = &goldfish_ttys[line];
-	uint32_t base = qtty->base;
+	void __iomem *base = qtty->base;
 	spin_lock_irqsave(&qtty->lock, irq_flags);
-	writel(buf, base + GOLDFISH_TTY_DATA_PTR);
+	writel((uint32_t)buf, base + GOLDFISH_TTY_DATA_PTR);
 	writel(count, base + GOLDFISH_TTY_DATA_LEN);
 	writel(GOLDFISH_TTY_CMD_WRITE_BUFFER, base + GOLDFISH_TTY_CMD);
 	spin_unlock_irqrestore(&qtty->lock, irq_flags);
@@ -68,7 +71,7 @@ static irqreturn_t goldfish_tty_interrupt(int irq, void *dev_id)
 {
 	struct platform_device *pdev = dev_id;
 	struct goldfish_tty *qtty = &goldfish_ttys[pdev->id];
-	uint32_t base = qtty->base;
+	void __iomem *base = qtty->base;
 	unsigned long irq_flags;
 	unsigned char *buf;
 	uint32_t count;
@@ -79,7 +82,7 @@ static irqreturn_t goldfish_tty_interrupt(int irq, void *dev_id)
 	}
 	count = tty_prepare_flip_string(qtty->tty, &buf, count);
 	spin_lock_irqsave(&qtty->lock, irq_flags);
-	writel(buf, base + GOLDFISH_TTY_DATA_PTR);
+	writel((uint32_t)buf, base + GOLDFISH_TTY_DATA_PTR);
 	writel(count, base + GOLDFISH_TTY_DATA_LEN);
 	writel(GOLDFISH_TTY_CMD_READ_BUFFER, base + GOLDFISH_TTY_CMD);
 	spin_unlock_irqrestore(&qtty->lock, irq_flags);
@@ -134,7 +137,7 @@ static int goldfish_tty_write_room(struct tty_struct *tty)
 static int goldfish_tty_chars_in_buffer(struct tty_struct *tty)
 {
 	struct goldfish_tty *qtty = &goldfish_ttys[tty->index];
-	uint32_t base = qtty->base;
+	void __iomem *base = qtty->base;
 	return readl(base + GOLDFISH_TTY_BYTES_READY);
 }
 
@@ -220,13 +223,17 @@ static int __devinit goldfish_tty_probe(struct platform_device *pdev)
 	int i;
 	struct resource *r;
 	struct device *ttydev;
-	uint32_t base;
+	void __iomem *base;
 	uint32_t irq;
 
 	r = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if(r == NULL)
 		return -EINVAL;
-	base = IO_ADDRESS(r->start - IO_START);
+#ifdef CONFIG_ARM
+	base = (void __iomem *)IO_ADDRESS(r->start - IO_START);
+#else
+	base = ioremap(r->start, 0x1000);
+#endif
 	r = platform_get_resource(pdev, IORESOURCE_IRQ, 0);
 	if(r == NULL)
 		return -EINVAL;
