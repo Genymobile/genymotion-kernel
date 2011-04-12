@@ -510,6 +510,11 @@ config MAX8997_MUIC
 	  Maxim MAX8997 PMIC.
 	  The MAX8997 MUIC is a USB port accessory detector and switch.
 
+config QEMU_PIPE
+        tristate "Virtual Device for QEMU pipes"
+        ---help---
+          This is a virtual device for QEMU pipes.
+
 config WL127X_RFKILL
 	tristate "Bluetooth power control driver for TI wl127x"
 	depends on RFKILL
