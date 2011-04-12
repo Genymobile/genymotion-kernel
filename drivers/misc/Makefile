@@ -24,6 +24,7 @@ obj-$(CONFIG_HP_ILO)		+= hpilo.o
 obj-$(CONFIG_UID_STAT)		+= uid_stat.o
 obj-$(CONFIG_C2PORT)		+= c2port/
 obj-$(CONFIG_QEMU_TRACE)	+= qemutrace/
+obj-$(CONFIG_QEMU_PIPE)		+= qemupipe/
 obj-y				+= eeprom/
 obj-$(CONFIG_WL127X_RFKILL)	+= wl127x-rfkill.o
 obj-$(CONFIG_APANIC)		+= apanic.o
