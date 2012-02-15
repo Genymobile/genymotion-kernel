@@ -24,7 +24,6 @@
 #include <linux/sched.h>
 #include <asm/uaccess.h>
 #include <asm/io.h>
-#include <asm/sizes.h>
 #include "qemu_trace.h"
 
 /* trace device registers */
