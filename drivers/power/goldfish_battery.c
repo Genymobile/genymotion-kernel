@@ -176,10 +176,12 @@ static int goldfish_battery_probe(struct platform_device *pdev)
 		ret = -ENODEV;
 		goto err_no_io_base;
 	}
-#ifdef CONFIG_ARM
+#if defined(CONFIG_ARM)
 	data->reg_base = (void __iomem *)IO_ADDRESS(r->start - IO_START);
-#elif	CONFIG_X86
+#elif defined(CONFIG_X86) || defined(CONFIG_MIPS)
 	data->reg_base = ioremap(r->start, r->end - r->start + 1);
+#else
+#error NOT SUPPORTED
 #endif
 
 	data->irq = platform_get_irq(pdev, 0);
@@ -213,6 +215,12 @@ err_ac_failed:
 	free_irq(data->irq, data);
 err_request_irq_failed:
 err_no_irq:
+#if defined(CONFIG_ARM)
+#elif defined(CONFIG_X86) || defined(CONFIG_MIPS)
+	iounmap(data->reg_base);
+#else
+#error NOT SUPPORTED
+#endif
 err_no_io_base:
 	kfree(data);
 err_data_alloc_failed:
