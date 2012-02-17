@@ -292,8 +292,10 @@ static int goldfish_audio_probe(struct platform_device *pdev)
 	}
 #if defined(CONFIG_ARM)
 	data->reg_base = (char __iomem *)IO_ADDRESS(r->start - IO_START);
-#elif defined(CONFIG_X86)
+#elif defined(CONFIG_X86) || defined(CONFIG_MIPS)
 	data->reg_base = ioremap(r->start, PAGE_SIZE);
+#else
+#error NOT SUPPORTED
 #endif
 	data->irq = platform_get_irq(pdev, 0);
 	if(data->irq < 0) {
@@ -304,9 +306,11 @@ static int goldfish_audio_probe(struct platform_device *pdev)
 #if defined(CONFIG_ARM)
 	data->buffer_virt = dma_alloc_writecombine(&pdev->dev, COMBINED_BUFFER_SIZE,
 							&buf_addr, GFP_KERNEL);
-#elif defined(CONFIG_X86)
+#elif defined(CONFIG_X86) || defined(CONFIG_MIPS)
 	data->buffer_virt = dma_alloc_coherent(NULL, COMBINED_BUFFER_SIZE,
 							&buf_addr, GFP_KERNEL);
+#else
+#error NOT SUPPORTED
 #endif
 	if(data->buffer_virt == 0) {
 		ret = -ENOMEM;
@@ -345,13 +349,15 @@ err_misc_register_failed:
 err_request_irq_failed:
 #if defined(CONFIG_ARM)
 	dma_free_writecombine(&pdev->dev, COMBINED_BUFFER_SIZE, data->buffer_virt, data->buffer_phys);
-#elif defined(CONFIG_X86)
-	dma_free_coherent(NULL, COMBINED_BUFFER_SIZE, data->buffer_virt, data->buffer_phys);
-#endif
 err_alloc_write_buffer_failed:
 err_no_irq:
-#ifdef  CONFIG_X86
+#elif defined(CONFIG_X86) || defined(CONFIG_MIPS)
+	dma_free_coherent(NULL, COMBINED_BUFFER_SIZE, data->buffer_virt, data->buffer_phys);
+err_alloc_write_buffer_failed:
+err_no_irq:
 	iounmap(data->reg_base);
+#else
+#error NOT SUPPORTED
 #endif
 err_no_io_base:
 	kfree(data);
@@ -367,9 +373,11 @@ static int goldfish_audio_remove(struct platform_device *pdev)
 	free_irq(data->irq, data);
 #if defined(CONFIG_ARM)
 	dma_free_writecombine(&pdev->dev, COMBINED_BUFFER_SIZE, data->buffer_virt, data->buffer_phys);
-#elif defined(CONFIG_X86)
+#elif defined(CONFIG_X86) || defined(CONFIG_MIPS)
 	dma_free_coherent(NULL, COMBINED_BUFFER_SIZE, data->buffer_virt, data->buffer_phys);
 	iounmap(data->reg_base);
+#else
+#error NOT SUPPORTED
 #endif
 	kfree(data);
 	audio_data = NULL;
