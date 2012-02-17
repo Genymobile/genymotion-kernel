@@ -1856,6 +1856,36 @@ config NR_CPUS
 source "kernel/time/Kconfig"
 
 #
+# High Resolution sched_clock() Configuration
+#
+
+config HR_SCHED_CLOCK
+	bool "High Resolution sched_clock()"
+	depends on CSRC_R4K
+	default n
+	help
+	  This option enables the MIPS c0 count based high resolution
+	  sched_clock().
+
+	  If you need a ns precision timestamp, You are recommended to enable
+	  this option. For example, If you are using the Ftrace subsystem to do
+	  real time tracing, this option is needed.
+
+	  If unsure, disable it.
+
+config HR_SCHED_CLOCK_UPDATE
+	bool "Update sched_clock() automatically"
+	depends on HR_SCHED_CLOCK
+	default y
+	help
+	  Because Some of the MIPS c0 count period is quite short and because
+	  cnt32_to_63() needs to be called at least once per half period to
+	  work properly, a kernel timer is needed to set up to ensure this
+	  requirement is always met.
+
+	  If unusre, enable it.
+
+#
 # Timer Interrupt Frequency Configuration
 #
 
