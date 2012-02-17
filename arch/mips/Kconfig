@@ -811,6 +811,11 @@ config NLM_XLP_BOARD
 	  This board is based on Netlogic XLP Processor.
 	  Say Y here if you have a XLP based board.
 
+config MIPS_GOLDFISH
+	bool "MIPS Goldfish"
+	help
+	  Support for the MIPS versions of the Android Goldfish Virtual Platform.
+
 endchoice
 
 source "arch/mips/alchemy/Kconfig"
@@ -830,6 +835,7 @@ source "arch/mips/vr41xx/Kconfig"
 source "arch/mips/cavium-octeon/Kconfig"
 source "arch/mips/loongson/Kconfig"
 source "arch/mips/netlogic/Kconfig"
+source "arch/mips/mach-goldfish/Kconfig"
 
 endmenu
 

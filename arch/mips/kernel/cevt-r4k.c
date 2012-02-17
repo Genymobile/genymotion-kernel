@@ -172,7 +172,12 @@ int __cpuinit r4k_clockevent_init(void)
 		return -ENXIO;
 
 	if (!c0_compare_int_usable())
+#ifdef CONFIG_MIPS_GOLDFISH
+		/* FIXME: this is not a reliable test with QEMU */
+		;
+#else
 		return -ENXIO;
+#endif
 
 	/*
 	 * With vectored interrupts things are getting platform specific.
