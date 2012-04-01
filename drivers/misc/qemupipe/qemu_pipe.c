@@ -81,6 +81,9 @@
 #define PIPE_REG_SIZE               0x0c  /* read/write: buffer size */
 #define PIPE_REG_ADDRESS            0x10  /* write: physical address */
 #define PIPE_REG_WAKES              0x14  /* read: wake flags */
+#define PIPE_REG_PARAMS_ADDR_LOW     0x18  /* read/write: batch data address */
+#define PIPE_REG_PARAMS_ADDR_HIGH    0x1c  /* read/write: batch data address */
+#define PIPE_REG_ACCESS_PARAMS       0x20  /* write: batch access */
 
 /* list of commands for PIPE_REG_COMMAND */
 #define CMD_OPEN               1  /* open new channel */
@@ -117,6 +120,16 @@
 #define PIPE_WAKE_READ         (1 << 1)  /* pipe can now be read from */
 #define PIPE_WAKE_WRITE        (1 << 2)  /* pipe can now be written to */
 
+struct access_params{
+	uint32_t channel;
+	uint32_t size;
+	uint32_t address;
+	uint32_t cmd;
+	uint32_t result;
+	/* reserved for future extension */
+	uint32_t flags;
+};
+
 /* The global driver data. Holds a reference to the i/o page used to
  * communicate with the emulator, and a wake queue for blocked tasks
  * waiting to be awoken.
@@ -124,6 +137,7 @@
 struct qemu_pipe_dev {
 	spinlock_t lock;
 	unsigned char __iomem *base;
+	struct access_params *aps;
 	int irq;
 };
 
@@ -161,6 +175,73 @@ static int qemu_pipe_error_convert(int status)
 		status = -EINVAL;
 	}
 	return status;
+}
+
+/*
+ * Notice: QEMU will return 0 for un-known register access, indicating
+ * param_acess is supported or not
+ */
+static int valid_batchbuffer_addr(struct qemu_pipe_dev *dev,
+				  struct access_params *aps)
+{
+	uint32_t aph, apl;
+	uint64_t paddr;
+	aph = readl(dev->base + PIPE_REG_PARAMS_ADDR_HIGH);
+	apl = readl(dev->base + PIPE_REG_PARAMS_ADDR_LOW);
+
+	paddr = ((uint64_t)aph << 32) | apl;
+	if (paddr != (__pa(aps)))
+	    return 0;
+	return 1;
+}
+
+/* 0 on success */
+static int setup_access_params_addr(struct qemu_pipe_dev *dev)
+{
+	uint64_t paddr;
+	struct access_params *aps;
+
+	aps = kmalloc(sizeof(struct access_params), GFP_KERNEL);
+	if (!aps)
+	    return -1;
+
+	paddr = __pa(aps);
+	writel((uint32_t)(paddr >> 32),
+	  dev->base + PIPE_REG_PARAMS_ADDR_HIGH);
+	writel((uint32_t)paddr,
+	  dev->base + PIPE_REG_PARAMS_ADDR_LOW);
+
+	if (valid_batchbuffer_addr(dev, aps))
+	{
+	    dev->aps = aps;
+	    return 0;
+	}
+	else
+	    return -1;
+}
+
+/* A value that will not be set by qemu emulator */
+#define INITIAL_BATCH_RESULT (0xdeadbeaf)
+static int access_with_param(struct qemu_pipe_dev *dev, const int cmd,
+                             unsigned long address, unsigned long avail,
+                             struct qemu_pipe *pipe, int *status)
+{
+	struct access_params *aps = dev->aps;
+
+	if (aps == NULL)
+	    return -1;
+
+	aps->result = INITIAL_BATCH_RESULT;
+	aps->channel = (unsigned long)pipe;
+	aps->size = avail;
+	aps->address = address;
+	aps->cmd = cmd;
+	writel(cmd, dev->base + PIPE_REG_ACCESS_PARAMS);
+	/* If the aps->result is not changed, or that means batch command failed */
+	if (aps->result == INITIAL_BATCH_RESULT)
+	    return -1;
+	*status = aps->result;
+	return 0;
 }
 
 /* This function is used for both reading from and writing to a given
@@ -235,12 +316,16 @@ static ssize_t qemu_pipe_read_write(struct file *filp, char __user *buffer,
 
 		/* Now, try to transfer the bytes in the current page */
 		spin_lock_irqsave(&dev->lock, irq_flags);
-		writel((unsigned long)pipe, dev->base + PIPE_REG_CHANNEL);
-		writel(avail, dev->base + PIPE_REG_SIZE);
-		writel(address, dev->base + PIPE_REG_ADDRESS);
-		writel(CMD_WRITE_BUFFER + cmd_offset,
-			dev->base + PIPE_REG_COMMAND);
-		status = readl(dev->base + PIPE_REG_STATUS);
+		if (access_with_param(dev, CMD_WRITE_BUFFER + cmd_offset, address,
+		      avail, pipe, &status))
+		{
+		    writel((unsigned long)pipe, dev->base + PIPE_REG_CHANNEL);
+		    writel(avail, dev->base + PIPE_REG_SIZE);
+		    writel(address, dev->base + PIPE_REG_ADDRESS);
+		    writel(CMD_WRITE_BUFFER + cmd_offset,
+		      dev->base + PIPE_REG_COMMAND);
+		    status = readl(dev->base + PIPE_REG_STATUS);
+		}
 		spin_unlock_irqrestore(&dev->lock, irq_flags);
 
 		if (status > 0) { /* Correct transfer */
@@ -517,6 +602,7 @@ static int qemu_pipe_probe(struct platform_device *pdev)
 	if (err)
 		goto err_misc_register;
 
+	setup_access_params_addr(dev);
 	return 0;
 
 err_misc_register:
@@ -537,6 +623,8 @@ static int qemu_pipe_remove(struct platform_device *pdev)
 	free_irq(dev->irq, pdev);
 
 	iounmap(dev->base);
+	if (dev->aps)
+		kfree(dev->aps);
 	dev->base = NULL;
 
 	return 0;
