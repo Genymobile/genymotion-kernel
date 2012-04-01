@@ -29,9 +29,45 @@
 struct goldfish_nand {
 	spinlock_t              lock;
 	unsigned char __iomem  *base;
+	struct cmd_params       *cmd_params;
 	size_t                  mtd_count;
 	struct mtd_info         mtd[0];
 };
+
+static uint32_t goldfish_nand_cmd_with_params(struct mtd_info *mtd,
+			enum nand_cmd cmd, uint64_t addr, uint32_t len,
+			void *ptr, uint32_t *rv)
+{
+	uint32_t cmdp;
+	struct goldfish_nand *nand = mtd->priv;
+	struct cmd_params *cps = nand->cmd_params;
+	unsigned char __iomem  *base = nand->base;
+
+	if (cps == NULL)
+	    return -1;
+
+	switch(cmd) {
+	    case NAND_CMD_ERASE:
+		cmdp = NAND_CMD_ERASE_WITH_PARAMS;
+		break;
+	    case NAND_CMD_READ:
+		cmdp = NAND_CMD_READ_WITH_PARAMS;
+		break;
+	    case NAND_CMD_WRITE:
+		cmdp = NAND_CMD_WRITE_WITH_PARAMS;
+		break;
+	    default:
+		return -1;
+	}
+	cps->dev = mtd - nand->mtd;
+	cps->addr_high = (uint32_t)(addr >> 32);
+	cps->addr_low = (uint32_t)addr;
+	cps->transfer_size = len;
+	cps->data = (uint32_t)ptr;
+	writel(cmdp, base + NAND_COMMAND);
+	*rv = cps->result;
+	return 0;
+}
 
 static uint32_t goldfish_nand_cmd(struct mtd_info *mtd, enum nand_cmd cmd,
                               uint64_t addr, uint32_t len, void *ptr)
@@ -42,13 +78,16 @@ static uint32_t goldfish_nand_cmd(struct mtd_info *mtd, enum nand_cmd cmd,
 	unsigned char __iomem  *base = nand->base;
 
 	spin_lock_irqsave(&nand->lock, irq_flags);
-	writel(mtd - nand->mtd, base + NAND_DEV);
-	writel((uint32_t)(addr >> 32), base + NAND_ADDR_HIGH);
-	writel((uint32_t)addr, base + NAND_ADDR_LOW);
-	writel(len, base + NAND_TRANSFER_SIZE);
-	writel((unsigned long)ptr, base + NAND_DATA);
-	writel(cmd, base + NAND_COMMAND);
-	rv = readl(base + NAND_RESULT);
+	if (goldfish_nand_cmd_with_params(mtd, cmd, addr, len, ptr, &rv))
+	{
+	    writel(mtd - nand->mtd, base + NAND_DEV);
+	    writel((uint32_t)(addr >> 32), base + NAND_ADDR_HIGH);
+	    writel((uint32_t)addr, base + NAND_ADDR_LOW);
+	    writel(len, base + NAND_TRANSFER_SIZE);
+	    writel((unsigned long)ptr, base + NAND_DATA);
+	    writel(cmd, base + NAND_COMMAND);
+	    rv = readl(base + NAND_RESULT);
+	}
 	spin_unlock_irqrestore(&nand->lock, irq_flags);
 	return rv;
 }
@@ -245,6 +284,21 @@ invalid_arg:
 	return -EINVAL;
 }
 
+static int nand_setup_cmd_params(struct goldfish_nand *nand)
+{
+	uint64_t paddr;
+	unsigned char __iomem  *base = nand->base;
+
+	nand->cmd_params = kmalloc(sizeof(struct cmd_params), GFP_KERNEL);
+	if (!nand->cmd_params)
+	    return -1;
+
+	paddr = __pa(nand->cmd_params);
+	writel((uint32_t)(paddr >> 32), base + NAND_CMD_PARAMS_ADDR_HIGH);
+	writel((uint32_t)paddr, base + NAND_CMD_PARAMS_ADDR_LOW);
+	return 0;
+}
+
 static int goldfish_nand_init_device(struct goldfish_nand *nand, int id)
 {
 	uint32_t name_len;
@@ -293,6 +347,8 @@ static int goldfish_nand_init_device(struct goldfish_nand *nand, int id)
 	mtd->flags = MTD_CAP_NANDFLASH;
 	if(flags & NAND_DEV_FLAG_READ_ONLY)
 		mtd->flags &= ~MTD_WRITEABLE;
+	if(flags & NAND_DEV_FLAG_CMD_PARAMS_CAP)
+	    nand_setup_cmd_params(nand);
 
 	mtd->owner = THIS_MODULE;
 	mtd->erase = goldfish_nand_erase;
@@ -389,6 +445,8 @@ static int goldfish_nand_remove(struct platform_device *pdev)
 			kfree(nand->mtd[i].name);
 		}
 	}
+	if (nand->cmd_params)
+	    kfree(nand->cmd_params);
 	iounmap(nand->base);
 	kfree(nand);
 	return 0;
