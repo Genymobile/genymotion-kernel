@@ -98,6 +98,10 @@ void rtc_cmos_write(unsigned char val, unsigned char addr);
 extern int mach_set_rtc_mmss(unsigned long nowtime);
 extern unsigned long mach_get_cmos_time(void);
 
+#ifdef CONFIG_X86_GOLDFISH
+#define RTC_IRQ 13
+#else
 #define RTC_IRQ 8
+#endif
 
 #endif /* _ASM_X86_MC146818RTC_H */
