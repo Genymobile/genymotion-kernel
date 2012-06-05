@@ -9,6 +9,8 @@ endif
 
 core-$(CONFIG_KVM) += arch/x86/kvm/
 
+cflags-y += -Wno-unused-but-set-variable
+
 # BITS is used as extension for files which are available in a 32 bit
 # and a 64 bit version to simplify shared Makefiles.
 # e.g.: obj-y += foo_$(BITS).o
