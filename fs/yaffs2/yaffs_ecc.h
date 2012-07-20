@@ -1,7 +1,7 @@
 /*
  * YAFFS: Yet another Flash File System . A NAND-flash specific file system.
  *
- * Copyright (C) 2002-2010 Aleph One Ltd.
+ * Copyright (C) 2002-2011 Aleph One Ltd.
  *   for Toby Churchill Ltd and Brightstar Engineering
  *
  * Created by Charles Manning <charles@aleph1.co.uk>
@@ -18,8 +18,8 @@
  *
  * The ECC comprises 22 bits of parity information and is stuffed into 3 bytes.
  * The two unused bit are set to 1.
- * The ECC can correct single bit errors in a 256-byte page of data. Thus, two such ECC
- * blocks are used on a 512-byte NAND page.
+ * The ECC can correct single bit errors in a 256-byte page of data.
+ * Thus, two such ECC blocks are used on a 512-byte NAND page.
  *
  */
 
@@ -32,7 +32,7 @@ struct yaffs_ecc_other {
 	unsigned line_parity_prime;
 };
 
-void yaffs_ecc_cacl(const unsigned char *data, unsigned char *ecc);
+void yaffs_ecc_calc(const unsigned char *data, unsigned char *ecc);
 int yaffs_ecc_correct(unsigned char *data, unsigned char *read_ecc,
 		      const unsigned char *test_ecc);
 

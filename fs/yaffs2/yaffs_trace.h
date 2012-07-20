@@ -1,7 +1,7 @@
 /*
  * YAFFS: Yet another Flash File System . A NAND-flash specific file system.
  *
- * Copyright (C) 2002-2010 Aleph One Ltd.
+ * Copyright (C) 2002-2011 Aleph One Ltd.
  *   for Toby Churchill Ltd and Brightstar Engineering
  *
  * Created by Charles Manning <charles@aleph1.co.uk>
@@ -43,7 +43,7 @@ extern unsigned int yaffs_wr_attempts;
 #define YAFFS_TRACE_VERIFY		0x00010000
 #define YAFFS_TRACE_VERIFY_NAND		0x00020000
 #define YAFFS_TRACE_VERIFY_FULL		0x00040000
-#define YAFFS_TRACE_VERIFY_ALL		0x000F0000
+#define YAFFS_TRACE_VERIFY_ALL		0x000f0000
 
 #define YAFFS_TRACE_SYNC		0x00100000
 #define YAFFS_TRACE_BACKGROUND		0x00200000
@@ -52,6 +52,6 @@ extern unsigned int yaffs_wr_attempts;
 
 #define YAFFS_TRACE_ERROR		0x40000000
 #define YAFFS_TRACE_BUG			0x80000000
-#define YAFFS_TRACE_ALWAYS		0xF0000000
+#define YAFFS_TRACE_ALWAYS		0xf0000000
 
 #endif

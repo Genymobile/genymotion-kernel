@@ -1,7 +1,7 @@
 /*
  * YAFFS: Yet Another Flash File System. A NAND-flash specific file system.
  *
- * Copyright (C) 2002-2010 Aleph One Ltd.
+ * Copyright (C) 2002-2011 Aleph One Ltd.
  *   for Toby Churchill Ltd and Brightstar Engineering
  *
  * Created by Charles Manning <charles@aleph1.co.uk>
@@ -14,6 +14,14 @@
 #include "yaffs_packedtags1.h"
 #include "yportenv.h"
 
+static const u8 all_ff[20] = {
+	0xff, 0xff, 0xff, 0xff,
+	0xff, 0xff, 0xff, 0xff,
+	0xff, 0xff, 0xff, 0xff,
+	0xff, 0xff, 0xff, 0xff,
+	0xff, 0xff, 0xff, 0xff
+};
+
 void yaffs_pack_tags1(struct yaffs_packed_tags1 *pt,
 		      const struct yaffs_ext_tags *t)
 {
@@ -24,21 +32,16 @@ void yaffs_pack_tags1(struct yaffs_packed_tags1 *pt,
 	pt->ecc = 0;
 	pt->deleted = (t->is_deleted) ? 0 : 1;
 	pt->unused_stuff = 0;
-	pt->should_be_ff = 0xFFFFFFFF;
-
+	pt->should_be_ff = 0xffffffff;
 }
 
 void yaffs_unpack_tags1(struct yaffs_ext_tags *t,
 			const struct yaffs_packed_tags1 *pt)
 {
-	static const u8 all_ff[] =
-	    { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
-		0xff
-	};
 
 	if (memcmp(all_ff, pt, sizeof(struct yaffs_packed_tags1))) {
 		t->block_bad = 0;
-		if (pt->should_be_ff != 0xFFFFFFFF)
+		if (pt->should_be_ff != 0xffffffff)
 			t->block_bad = 1;
 		t->chunk_used = 1;
 		t->obj_id = pt->obj_id;
