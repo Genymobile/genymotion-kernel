@@ -20,7 +20,6 @@
 #include <linux/ioport.h>
 #include <linux/vmalloc.h>
 #include <linux/init.h>
-#include <linux/mtd/compatmac.h>
 #include <linux/mtd/mtd.h>
 #include <linux/platform_device.h>
 
@@ -295,15 +294,15 @@ static int goldfish_nand_init_device(struct goldfish_nand *nand, int id)
 		mtd->flags &= ~MTD_WRITEABLE;
 
 	mtd->owner = THIS_MODULE;
-	mtd->erase = goldfish_nand_erase;
-	mtd->read = goldfish_nand_read;
-	mtd->write = goldfish_nand_write;
-	mtd->read_oob = goldfish_nand_read_oob;
-	mtd->write_oob = goldfish_nand_write_oob;
-	mtd->block_isbad = goldfish_nand_block_isbad;
-	mtd->block_markbad = goldfish_nand_block_markbad;
+	mtd->_erase = goldfish_nand_erase;
+	mtd->_read = goldfish_nand_read;
+	mtd->_write = goldfish_nand_write;
+	mtd->_read_oob = goldfish_nand_read_oob;
+	mtd->_write_oob = goldfish_nand_write_oob;
+	mtd->_block_isbad = goldfish_nand_block_isbad;
+	mtd->_block_markbad = goldfish_nand_block_markbad;
 
-	if (add_mtd_device(mtd)) {
+	if (mtd_device_register(mtd, NULL, 0)) {
 		kfree(mtd->name);
 		mtd->name = NULL;
 		return -EIO;
@@ -385,7 +384,7 @@ static int goldfish_nand_remove(struct platform_device *pdev)
 	int i;
 	for(i = 0; i < nand->mtd_count; i++) {
 		if(nand->mtd[i].name) {
-			del_mtd_device(&nand->mtd[i]);
+			mtd_device_unregister(&nand->mtd[i]);
 			kfree(nand->mtd[i].name);
 		}
 	}

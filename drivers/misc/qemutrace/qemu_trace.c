@@ -132,7 +132,7 @@ void qemu_trace_cs(struct task_struct *next)
 EXPORT_SYMBOL(qemu_trace_cs);
 
 /* trace the execve */
-void qemu_trace_execve(int argc, char __user * __user *argv)
+void qemu_trace_execve(int argc, const char __user *const __user *argv)
 {
 	unsigned long irq_flags;
 	char page[PAGE_SIZE];

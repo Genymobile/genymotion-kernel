@@ -19,6 +19,7 @@
 #include <linux/platform_device.h>
 #include <linux/tty.h>
 #include <linux/tty_flip.h>
+#include <linux/slab.h>
 
 #ifdef CONFIG_ARM
 #include <mach/hardware.h>

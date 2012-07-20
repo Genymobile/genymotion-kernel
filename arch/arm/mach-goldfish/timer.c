@@ -38,7 +38,7 @@ static irqreturn_t goldfish_timer_interrupt(int irq, void *dev_id)
 	return IRQ_HANDLED;
 }
 
-static cycle_t goldfish_timer_read(void)
+static cycle_t goldfish_timer_read(struct clocksource *cs)
 {
 	uint32_t timer_base = IO_ADDRESS(GOLDFISH_TIMER_BASE);
 	unsigned long irqflags;

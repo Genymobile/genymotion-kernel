@@ -1458,7 +1458,7 @@ int search_binary_handler(struct linux_binprm *bprm,struct pt_regs *regs)
 EXPORT_SYMBOL(search_binary_handler);
 
 #ifdef CONFIG_QEMU_TRACE
-extern void qemu_trace_execve(int argc, char __user * __user * argv);
+extern void qemu_trace_execve(int argc, const char __user *const __user * argv);
 #endif
 
 /*

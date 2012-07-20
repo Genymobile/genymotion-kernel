@@ -20,6 +20,7 @@
 #include <linux/input.h>
 #include <linux/kernel.h>
 #include <linux/platform_device.h>
+#include <linux/slab.h>
 
 #include <asm/irq.h>
 #include <asm/io.h>

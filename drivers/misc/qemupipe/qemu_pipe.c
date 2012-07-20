@@ -54,6 +54,7 @@
 #include <linux/sched.h>
 #include <linux/bitops.h>
 #include <linux/io.h>
+#include <linux/slab.h>
 
 /* Set to 1 for normal debugging, and 2 for extensive one */
 #define PIPE_DEBUG  0
