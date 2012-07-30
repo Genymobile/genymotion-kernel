@@ -1552,7 +1552,7 @@ static int do_execve_common(const char *filename,
 		goto out;
 
 #ifdef CONFIG_QEMU_TRACE
-        qemu_trace_execve(bprm->argc, argv);
+        qemu_trace_execve(bprm->argc, argv.ptr.native);
 #endif
 
 	retval = search_binary_handler(bprm,regs);
