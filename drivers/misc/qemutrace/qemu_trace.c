@@ -136,21 +136,24 @@ void qemu_trace_execve(int argc, char __user * __user *argv)
 	unsigned long irq_flags;
 	char page[PAGE_SIZE];
 	char *ptr = page;
+	int remaining = sizeof(page);
 
 	if (qt_base == NULL)
 		return;
 
-	while (argc-- > 0) {
+	while (argc-- > 0 && remaining > 1) {
 		char __user *str;
 		int len;
 		if (get_user(str, argv ++))
 			return;
-		len = strnlen_user(str, PAGE_SIZE);
+		len = strnlen_user(str, remaining-1);
 		if (len == 0)
-			return;
+			break; /* end of argv list */
 		if (copy_from_user(ptr, str, len))
 			return;
 		ptr += len;
+		*ptr++ = '\0';
+		remaining -= len + 1;
 	}
 
 	if (ptr > page) {
