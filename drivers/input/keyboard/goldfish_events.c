@@ -52,6 +52,9 @@ static irqreturn_t events_interrupt(int irq, void *dev_id)
     value = __raw_readl(edev->addr + REG_READ);
 
     input_event(edev->input, type, code, value);
+    if (type == EV_KEY) {
+        input_sync(edev->input);
+    }
     return IRQ_HANDLED;
 }
 
