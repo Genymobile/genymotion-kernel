@@ -30,7 +30,7 @@
 #include <linux/android_power.h>
 #endif
 
-#ifdef	CONFIG_X86
+#ifdef CONFIG_X86
 #include <asm/mtrr.h>
 #else
 #include <mach/hardware.h>
@@ -212,9 +212,9 @@ static int goldfish_fb_probe(struct platform_device *pdev)
 		ret = -ENODEV;
 		goto err_no_io_base;
 	}
-#ifdef CONFIG_ARM
+#if defined(CONFIG_ARM)
 	fb->reg_base = (void __iomem *)IO_ADDRESS(r->start - IO_START);
-#elif CONFIG_X86
+#elif defined(CONFIG_X86)
 	fb->reg_base = ioremap(r->start, PAGE_SIZE);
 #endif
 
@@ -255,10 +255,10 @@ static int goldfish_fb_probe(struct platform_device *pdev)
 	fb->fb.var.blue.length = 5;
 
 	framesize = width * height * 2 * 2;
-#ifdef CONFIG_ARM
+#if defined(CONFIG_ARM)
 	fb->fb.screen_base = dma_alloc_writecombine(&pdev->dev, framesize,
 	                                            &fbpaddr, GFP_KERNEL);
-#elif	CONFIG_X86
+#elif defined(CONFIG_X86)
 	fb->fb.screen_base = dma_alloc_coherent(NULL, framesize,
 						&fbpaddr, GFP_KERNEL);
 #endif
@@ -301,14 +301,14 @@ err_register_framebuffer_failed:
 	free_irq(fb->irq, fb);
 err_request_irq_failed:
 err_fb_set_var_failed:
-#ifdef	CONFIG_ARM
+#if defined(CONFIG_ARM)
 	dma_free_writecombine(&pdev->dev, framesize, fb->fb.screen_base, fb->fb.fix.smem_start);
-#elif	CONFIG_X86
+#elif defined(CONFIG_X86)
 	dma_free_coherent(NULL, framesize, fb->fb.screen_base, fb->fb.fix.smem_start);
 #endif
 err_alloc_screen_base_failed:
 err_no_irq:
-#ifdef	CONFIG_X86
+#ifdef CONFIG_X86
 	iounmap(fb->reg_base);
 #endif
 err_no_io_base:
@@ -329,10 +329,10 @@ static int goldfish_fb_remove(struct platform_device *pdev)
 #endif
 	unregister_framebuffer(&fb->fb);
 	free_irq(fb->irq, fb);
-#ifdef	CONFIG_ARM
+#if defined(CONFIG_ARM)
 	dma_free_writecombine(&pdev->dev, framesize, fb->fb.screen_base, fb->fb.fix.smem_start);
 	kfree(fb);
-#elif	CONFIG_X86
+#elif defined(CONFIG_X86)
 	dma_free_coherent(NULL, framesize, fb->fb.screen_base, fb->fb.fix.smem_start);
 	iounmap(fb->reg_base);
 #endif

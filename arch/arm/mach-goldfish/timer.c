@@ -85,6 +85,11 @@ static void goldfish_timer_set_mode(enum clock_event_mode mode,
 	}
 }
 
+/*
+ * TODO: the mechanism for overriding the default sched_clock() has
+ * changed since 2.6, but I'm not sure how the new mechanism works, so
+ * I'm just reverting to the default to avoid a link-time multiple
+ * definition error.
 unsigned long long sched_clock(void)
 {
 	if(goldfish_timer_ready)
@@ -92,6 +97,7 @@ unsigned long long sched_clock(void)
 	else
 		return 0;
 }
+ */
 
 static struct clock_event_device goldfish_clockevent = {
 	.name           = "goldfish_timer",

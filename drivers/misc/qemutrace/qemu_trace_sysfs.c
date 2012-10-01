@@ -17,13 +17,13 @@
 #include <linux/list.h>
 #include <linux/module.h>
 #include <linux/miscdevice.h>
-#include <linux/sysdev.h>
 #include <linux/fs.h>
 #include <linux/poll.h>
 #include <linux/interrupt.h>
 #include <linux/delay.h>
 #include <linux/clk.h>
 #include <linux/wait.h>
+#include <linux/slab.h>
 #include "qemu_trace.h"
 
 MODULE_DESCRIPTION("Qemu Trace Driver");

@@ -60,21 +60,21 @@ static void __init goldfish_init(void)
 	platform_device_register(&goldfish_pdev_bus_device);
 }
 
-void goldfish_mask_irq(unsigned int irq)
+void goldfish_mask_irq(struct irq_data *d)
 {
-	writel(irq, IO_ADDRESS(GOLDFISH_INTERRUPT_BASE) + GOLDFISH_INTERRUPT_DISABLE);
+	writel(d->irq, IO_ADDRESS(GOLDFISH_INTERRUPT_BASE) + GOLDFISH_INTERRUPT_DISABLE);
 }
 
-void goldfish_unmask_irq(unsigned int irq)
+void goldfish_unmask_irq(struct irq_data *d)
 {
-	writel(irq, IO_ADDRESS(GOLDFISH_INTERRUPT_BASE) + GOLDFISH_INTERRUPT_ENABLE);
+	writel(d->irq, IO_ADDRESS(GOLDFISH_INTERRUPT_BASE) + GOLDFISH_INTERRUPT_ENABLE);
 }
 
 static struct irq_chip goldfish_irq_chip = {
-	.name	= "goldfish",
-	.mask	= goldfish_mask_irq,
-	.mask_ack = goldfish_mask_irq,
-	.unmask = goldfish_unmask_irq,
+	.name		= "goldfish",
+	.irq_mask	= goldfish_mask_irq,
+	.irq_mask_ack	= goldfish_mask_irq,
+	.irq_unmask	= goldfish_unmask_irq,
 };
 
 void goldfish_init_irq(void)
@@ -88,8 +88,8 @@ void goldfish_init_irq(void)
 	writel(1, int_base + GOLDFISH_INTERRUPT_DISABLE_ALL);
 
 	for (i = 0; i < NR_IRQS; i++) {
-		set_irq_chip(i, &goldfish_irq_chip);
-		set_irq_handler(i, handle_level_irq);
+		irq_set_chip(i, &goldfish_irq_chip);
+		irq_set_handler(i, handle_level_irq);
 		set_irq_flags(i, IRQF_VALID | IRQF_PROBE);
 	}
 }
@@ -112,9 +112,6 @@ static void __init goldfish_map_io(void)
 extern struct sys_timer goldfish_timer;
 
 MACHINE_START(GOLDFISH, "Goldfish")
-	.phys_io	= IO_START,
-	.io_pg_offst	= ((IO_BASE) >> 18) & 0xfffc,
-	.boot_params	= 0x00000100,
 	.map_io		= goldfish_map_io,
 	.init_irq	= goldfish_init_irq,
 	.init_machine	= goldfish_init,

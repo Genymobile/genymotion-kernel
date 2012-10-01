@@ -28,6 +28,9 @@
 #ifdef	CONFIG_X86
 #include <asm/mtrr.h>
 #endif
+#ifdef CONFIG_ARM
+#include <mach/hardware.h>
+#endif
 
 MODULE_AUTHOR("Google, Inc.");
 MODULE_DESCRIPTION("Android QEMU Audio Driver");

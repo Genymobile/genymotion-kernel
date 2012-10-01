@@ -14,8 +14,11 @@
 */
 
 #include <linux/err.h>
+#include <linux/export.h>
 #include <linux/interrupt.h>
 #include <linux/irq.h>
+#include <linux/slab.h>
+#include <linux/stat.h>
 
 #include <mach/timer.h>
 #include <mach/hardware.h>

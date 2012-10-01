@@ -23,7 +23,11 @@
 #include <linux/types.h>
 #include <linux/pci.h>
 #include <linux/interrupt.h>
+#include <linux/slab.h>
 #include <asm/io.h>
+#ifdef CONFIG_ARM
+#include <mach/hardware.h>
+#endif
 
 
 struct goldfish_battery_data {
@@ -178,7 +182,7 @@ static int goldfish_battery_probe(struct platform_device *pdev)
 	}
 #ifdef CONFIG_ARM
 	data->reg_base = (void __iomem *)IO_ADDRESS(r->start - IO_START);
-#elif	CONFIG_X86
+#elif	defined(CONFIG_X86)
 	data->reg_base = ioremap(r->start, r->end - r->start + 1);
 #endif
 
