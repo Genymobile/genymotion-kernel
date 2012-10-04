@@ -336,7 +336,20 @@ static irqreturn_t goldfish_mmc_irq(int irq, void *dev_id)
 	else if (end_transfer) {
 		host->dma_done = 1;
 		goldfish_mmc_end_of_data(host, host->data);
+	} else if (host->data != NULL && host->mrq->cmd->opcode == 13) {
+		/*
+		 * WORKAROUND -- after porting this driver from 2.6 to 3.4,
+		 * this case pops up during device initialization.
+		 * This happens as the host stack is sending ACMD13 which
+		 * involves data read while goldfish emulator implementation
+		 * only supports CMD13 which does not have data phase.
+		 * The workaround works by passing garbage result to the stack.
+		 * TODO -- To implement proper response
+		 */
+		host->dma_done = 1;
+		goldfish_mmc_end_of_data(host, host->data);
 	}
+
 	if (state_changed) {
 		u32 state = GOLDFISH_MMC_READ(host, MMC_STATE);
 		pr_info("%s: Card detect now %d\n", __func__,
