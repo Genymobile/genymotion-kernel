@@ -4,10 +4,12 @@ menu "Goldfish Options"
 
 config MACH_GOLDFISH
 	bool "Goldfish (Virtual Platform)"
+	select NEED_MACH_IO_H
 	select CPU_ARM926T
 
 config MACH_GOLDFISH_ARMV7
 	bool "Goldfish ARMv7 (Virtual Platform)"
+	select NEED_MACH_IO_H
 	select CPU_V7
         select VFP
         select VFPv3
