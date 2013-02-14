@@ -19,12 +19,9 @@
 #define GOLDFISH_TTY_PUT_CHAR_PHYS (IO_START + GOLDFISH_TTY_BASE)
 #define GOLDFISH_TTY_PUT_CHAR_BASE (IO_BASE + GOLDFISH_TTY_BASE)
 
-	.macro	addruart,rx
-	@ see if the MMU is enabled and select appropriate base address
-	mrc	p15, 0, \rx, c1, c0
-	tst	\rx, #1
-	ldreq	\rx, =GOLDFISH_TTY_PUT_CHAR_PHYS
-	ldrne	\rx, =GOLDFISH_TTY_PUT_CHAR_BASE
+	.macro	addruart, rp, rv, rtmp
+	ldr		\rp, =GOLDFISH_TTY_PUT_CHAR_PHYS
+	ldr		\rv, =GOLDFISH_TTY_PUT_CHAR_BASE
 	.endm
 
 	.macro	senduart,rd,rx
