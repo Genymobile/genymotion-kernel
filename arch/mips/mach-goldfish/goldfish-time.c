@@ -13,7 +13,7 @@
 #include <asm/io.h>
 #include <asm/time.h>
 #include <asm/bootinfo.h>
-#include <asm/mach-goldfish/irq.h>
+#include <asm-mips/mach-goldfish/irq.h>
 #include <asm/div64.h>
 
 /*
@@ -75,8 +75,8 @@ void plat_time_init(void)
 void save_time_delta(struct timespec *delta, struct timespec *rtc)
 {
 	set_normalized_timespec(delta,
-				xtime.tv_sec - rtc->tv_sec,
-				xtime.tv_nsec - rtc->tv_nsec);
+				__current_kernel_time().tv_sec - rtc->tv_sec,
+				__current_kernel_time().tv_nsec - rtc->tv_nsec);
 }
 EXPORT_SYMBOL(save_time_delta);
 

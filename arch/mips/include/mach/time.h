@@ -1,3 +1,3 @@
 #ifdef CONFIG_MIPS_GOLDFISH
-#include <asm/mach-goldfish/time.h>
+#include <asm-mips/mach-goldfish/time.h>
 #endif
