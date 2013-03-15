@@ -45,8 +45,9 @@ static enum nand_cmd to_cmd_with_params(enum nand_cmd cmd,
 		return NAND_CMD_READ_WITH_PARAMS;
 	case NAND_CMD_WRITE:
 		return NAND_CMD_WRITE_WITH_PARAMS;
+	default:
+		return NAND_CMD_INVALID;
 	}
-	return NAND_CMD_INVALID;
 }
 
 static uint32_t goldfish_nand_cmd(struct mtd_info *mtd, enum nand_cmd cmd,
