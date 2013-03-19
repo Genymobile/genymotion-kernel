@@ -51,6 +51,7 @@
 #include <linux/miscdevice.h>
 #include <linux/platform_device.h>
 #include <linux/poll.h>
+#include <linux/radix-tree.h>
 #include <linux/sched.h>
 #include <linux/bitops.h>
 #include <linux/io.h>
@@ -58,6 +59,9 @@
 
 /* Set to 1 for normal debugging, and 2 for extensive one */
 #define PIPE_DEBUG  0
+
+#define PIPE_E(...) printk(KERN_ERR "QEMU Pipe Device:"  __VA_ARGS__)
+#define PIPE_W(...) printk(KERN_WARNING "QEMU Pipe Device:"  __VA_ARGS__)
 
 #if PIPE_DEBUG >= 1
 #  define  PIPE_D(...)  printk(KERN_INFO "QEMU Pipe Device:"  __VA_ARGS__)
@@ -140,6 +144,7 @@ struct qemu_pipe_dev {
 	unsigned char __iomem *base;
 	struct access_params *aps;
 	int irq;
+	struct radix_tree_root pipes;
 };
 
 static struct qemu_pipe_dev   pipe_dev[1];
@@ -253,7 +258,7 @@ static ssize_t qemu_pipe_read_write(struct file *filp, char __user *buffer,
 
 	/* If the emulator already closed the pipe, no need to go further */
 	if (test_bit(BIT_CLOSED_ON_HOST, &pipe->flags)) {
-		PIPE_D("(write=%d) already closed!\n", is_write);
+		PIPE_W("(write=%d) already closed!\n", is_write);
 		ret = -EIO;
 		goto out;
 	}
@@ -271,7 +276,7 @@ static ssize_t qemu_pipe_read_write(struct file *filp, char __user *buffer,
 
 	/* Serialize access to the pipe */
 	if (mutex_lock_interruptible(&pipe->lock)) {
-		PIPE_DD("(write=%d) interrupted!\n", is_write);
+		PIPE_W("(write=%d) interrupted!\n", is_write);
 		return -ERESTARTSYS;
 	}
 
@@ -290,8 +295,8 @@ static ssize_t qemu_pipe_read_write(struct file *filp, char __user *buffer,
 			char c;
 			/* Ensure that the page is mapped and readable */
 			if (__get_user(c, (char __user *)address)) {
-				PIPE_D("read fault at address 0x%08x\n",
-					address);
+				PIPE_E("read fault at address 0x%08x\n",
+					(unsigned int)address);
 				if (!ret)
 					ret = -EFAULT;
 				break;
@@ -299,8 +304,8 @@ static ssize_t qemu_pipe_read_write(struct file *filp, char __user *buffer,
 		} else {
 			/* Ensure that the page is mapped and writable */
 			if (__put_user(0, (char __user *)address)) {
-				PIPE_D("write fault at address 0x%08x\n",
-					address);
+				PIPE_E("write fault at address 0x%08x\n",
+					(unsigned int)address);
 				if (!ret)
 					ret = -EFAULT;
 				break;
@@ -464,6 +469,12 @@ static irqreturn_t qemu_pipe_interrupt(int irq, void *dev_id)
 		wakes = readl(dev->base + PIPE_REG_WAKES);
 		pipe  = (struct qemu_pipe *)(ptrdiff_t)channel;
 
+		/* check if pipe is still valid */
+		if ((pipe = radix_tree_lookup(&dev->pipes,
+			(unsigned long)pipe)) == NULL) {
+			PIPE_W("interrupt for already closed pipe\n");
+			break;
+		}
 		/* Did the emulator just closed a pipe? */
 		if (wakes & PIPE_WAKE_CLOSED) {
 			set_bit(BIT_CLOSED_ON_HOST, &pipe->flags);
@@ -488,11 +499,12 @@ static int qemu_pipe_open(struct inode *inode, struct file *file)
 	struct qemu_pipe *pipe;
 	struct qemu_pipe_dev *dev = pipe_dev;
 	int32_t status;
+	int ret;
 
 	/* Allocate new pipe kernel object */
 	pipe = kzalloc(sizeof(*pipe), GFP_KERNEL);
 	if (pipe == NULL) {
-		PIPE_D("Not enough kernel memory to allocate new pipe\n");
+		PIPE_E("Not enough kernel memory to allocate new pipe\n");
 		return -ENOMEM;
 	}
 
@@ -506,13 +518,18 @@ static int qemu_pipe_open(struct inode *inode, struct file *file)
 	* pipe object's address as the channel identifier for simplicity.
 	*/
 	spin_lock_irqsave(&dev->lock, irq_flags);
+	if ((ret = radix_tree_insert(&dev->pipes, (unsigned long)pipe, pipe))) {
+		spin_unlock_irqrestore(&dev->lock, irq_flags);
+		kfree(pipe);
+		return ret;
+	}
 	writel((unsigned long)pipe, dev->base + PIPE_REG_CHANNEL);
 	writel(CMD_OPEN, dev->base + PIPE_REG_COMMAND);
 	status = readl(dev->base + PIPE_REG_STATUS);
 	spin_unlock_irqrestore(&dev->lock, irq_flags);
 
 	if (status < 0) {
-		PIPE_D("Could not open pipe channel, error=%d\n", status);
+		PIPE_E("Could not open pipe channel, error=%d\n", status);
 		kfree(pipe);
 		return status;
 	}
@@ -534,10 +551,11 @@ static int qemu_pipe_release(struct inode *inode, struct file *filp)
 	spin_lock_irqsave(&dev->lock, irq_flags);
 	writel((unsigned long)pipe, dev->base + PIPE_REG_CHANNEL);
 	writel(CMD_CLOSE, dev->base + PIPE_REG_COMMAND);
+	filp->private_data = NULL;
+	radix_tree_delete(&pipe_dev->pipes, (unsigned long)pipe);
+	kfree(pipe);
 	spin_unlock_irqrestore(&dev->lock, irq_flags);
 
-	kfree(pipe);
-	filp->private_data = NULL;
 	return 0;
 }
 
@@ -564,6 +582,7 @@ static int qemu_pipe_probe(struct platform_device *pdev)
 
 	PIPE_D("Creating device\n");
 
+	INIT_RADIX_TREE(&dev->pipes, GFP_ATOMIC);
 	/* not thread safe, but this should not happen */
 	if (dev->base != NULL) {
 		printk(KERN_ERR "QEMU PIPE Device: already mapped at %p\n",
