@@ -4,10 +4,7 @@
 #include <linux/irq.h>
 #include <linux/platform_device.h>
 #include <linux/delay.h>
-#include <linux/mtd/mtd.h>
-#include <linux/mtd/nand.h>
-#include <linux/mtd/partitions.h>
-#include <linux/input.h>
+#include <linux/export.h>
 
 #include <asm/mach-goldfish/hardware.h>
 #include <asm/io.h>

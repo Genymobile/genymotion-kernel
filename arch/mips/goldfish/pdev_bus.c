@@ -48,7 +48,7 @@ struct pdev_bus_dev {
 
 static void goldfish_pdev_worker(struct work_struct *work);
 
-static uint32_t pdev_bus_base;
+static void __iomem *pdev_bus_base;
 static uint32_t pdev_bus_irq;
 static LIST_HEAD(pdev_bus_new_devices);
 static LIST_HEAD(pdev_bus_registered_devices);

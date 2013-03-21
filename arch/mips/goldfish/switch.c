@@ -41,7 +41,7 @@ enum {
 static struct class *goldfish_switch_class;
 
 struct goldfish_switch {
-	uint32_t base;
+	void __iomem *base;
 	int irq;
 	uint32_t state;
 	uint32_t flags;
@@ -121,7 +121,7 @@ static int __devinit goldfish_switch_probe(struct platform_device *pdev)
 	int ret;
 	struct resource *r;
 	struct goldfish_switch *qs;
-	uint32_t base;
+	void __iomem *base;
 	uint32_t name_len;
 
 	r = platform_get_resource(pdev, IORESOURCE_MEM, 0);
@@ -146,7 +146,7 @@ static int __devinit goldfish_switch_probe(struct platform_device *pdev)
 	}
 	qs->irq = r->start;
 
-	writel(qs->name, base + SW_NAME_PTR);
+	writel((u32)(qs->name), base + SW_NAME_PTR);
 	qs->name[name_len] = '\0';
 	writel(0, base + SW_INT_ENABLE);
 
