@@ -20,10 +20,10 @@
 #include <linux/platform_device.h>
 #include <linux/slab.h>
 
-#include <mach/hardware.h>
+#include <asm/mach-goldfish/hardware.h>
 #include <asm/io.h>
 
-#include <asm-mips/mach-goldfish/irq.h>
+#include <asm/mach-goldfish/irq.h>
 
 #define PDEV_BUS_OP_DONE        (0x00)
 #define PDEV_BUS_OP_REMOVE_DEV  (0x04)

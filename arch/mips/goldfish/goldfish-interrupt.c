@@ -24,11 +24,11 @@
 #include <linux/mtd/partitions.h>
 #include <linux/input.h>
 
-#include <mach/hardware.h>
+#include <asm/mach-goldfish/hardware.h>
 #include <asm/io.h>
 #include <asm/irq_cpu.h>
 #include <asm/setup.h>
-#include <asm-mips/mach-goldfish/irq.h>
+#include <asm/mach-goldfish/irq.h>
 
 static void __iomem *goldfish_interrupt;
 

@@ -20,10 +20,10 @@
 #include <linux/slab.h>
 #include <linux/stat.h>
 
-#include <mach/timer.h>
-#include <mach/hardware.h>
+#include <asm/mach-goldfish/timer.h>
+#include <asm/mach-goldfish/hardware.h>
 #include <asm/io.h>
-#include <asm-mips/mach/time.h>
+#include <asm/mach-goldfish/time.h>
 
 #include <linux/platform_device.h>
 

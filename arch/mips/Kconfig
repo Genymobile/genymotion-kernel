@@ -835,7 +835,7 @@ source "arch/mips/vr41xx/Kconfig"
 source "arch/mips/cavium-octeon/Kconfig"
 source "arch/mips/loongson/Kconfig"
 source "arch/mips/netlogic/Kconfig"
-source "arch/mips/mach-goldfish/Kconfig"
+source "arch/mips/goldfish/Kconfig"
 
 endmenu
 

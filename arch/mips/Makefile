@@ -195,8 +195,8 @@ include $(srctree)/arch/mips/Kbuild.platforms
 #
 # Goldfish
 #
-core-$(CONFIG_MIPS_GOLDFISH)	+= arch/mips/mach-goldfish/
-cflags-$(CONFIG_MIPS_GOLDFISH)	+= -Iinclude/asm-mips/mach-goldfish
+core-$(CONFIG_MIPS_GOLDFISH)	+= arch/mips/goldfish/
+cflags-$(CONFIG_MIPS_GOLDFISH)	+= -Iarch/mips/include/asm/mach-goldfish -Iarch/mips/goldfish/include
 load-$(CONFIG_MIPS_GOLDFISH)	+= 0xffffffff80010000
 all-$(CONFIG_MIPS_GOLDFISH)	:= vmlinux.bin
 
