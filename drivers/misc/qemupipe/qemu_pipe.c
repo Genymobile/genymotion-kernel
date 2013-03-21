@@ -271,6 +271,7 @@ static ssize_t qemu_pipe_read_write(struct file *filp, char __user *buffer,
 	if (!access_ok(is_write ? VERIFY_WRITE : VERIFY_READ,
 			buffer, bufflen)) {
 		ret = -EFAULT;
+		PIPE_W("rw access_ok failed\n");
 		goto out;
 	}
 
@@ -373,11 +374,13 @@ static ssize_t qemu_pipe_read_write(struct file *filp, char __user *buffer,
 					pipe->wake_queue,
 					!test_bit(wakeBit, &pipe->flags))) {
 				ret = -ERESTARTSYS;
+				PIPE_W("rw, wait_event error\n");
 				goto out;
 			}
 
 			if (test_bit(BIT_CLOSED_ON_HOST, &pipe->flags)) {
 				ret = -EIO;
+				PIPE_W("rw, pipe already closed\n");
 				goto out;
 			}
 		}
@@ -520,6 +523,7 @@ static int qemu_pipe_open(struct inode *inode, struct file *file)
 	spin_lock_irqsave(&dev->lock, irq_flags);
 	if ((ret = radix_tree_insert(&dev->pipes, (unsigned long)pipe, pipe))) {
 		spin_unlock_irqrestore(&dev->lock, irq_flags);
+		PIPE_E("opening pipe failed due to radix tree insertion failure\n");
 		kfree(pipe);
 		return ret;
 	}
