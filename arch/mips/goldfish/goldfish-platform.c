@@ -67,7 +67,7 @@ void __init prom_init(void)
 	strcpy(arcs_cmdline, cmdline);
 }
 
-void plat_mem_setup(void)
+void __init plat_mem_setup(void)
 {
 	unsigned int ramsize = fw_arg1;
 	add_memory_region(0x0, ramsize, BOOT_MEM_RAM);
