@@ -189,8 +189,6 @@ static int goldfish_nand_read(struct mtd_info *mtd, loff_t from, size_t len,
 
 	if(from + len > mtd->size)
 		goto invalid_arg;
-	if(len != mtd->writesize)
-		goto invalid_arg;
 
 	rem = do_div(from, mtd->writesize);
 	if(rem)
@@ -212,8 +210,6 @@ static int goldfish_nand_write(struct mtd_info *mtd, loff_t to, size_t len,
 	uint32_t rem;
 
 	if(to + len > mtd->size)
-		goto invalid_arg;
-	if(len != mtd->writesize)
 		goto invalid_arg;
 
 	rem = do_div(to, mtd->writesize);
