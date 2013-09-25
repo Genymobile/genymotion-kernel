@@ -85,6 +85,8 @@
 #include <asm/cop2.h>
 #include <asm/inst.h>
 #include <asm/uaccess.h>
+#include <asm/fpu.h>
+#include <asm/fpu_emulator.h>
 
 #define STR(x)  __STR(x)
 #define __STR(x)  #x
@@ -101,6 +103,10 @@ static u32 unaligned_action;
 #define unaligned_action UNALIGNED_ACTION_QUIET
 #endif
 extern void show_registers(struct pt_regs *regs);
+extern int fpu_emulator_cop1Handler(struct pt_regs *xcp,
+				    struct mips_fpu_struct *ctx, int has_fpu,
+				    void *__user *fault_addr);
+extern int process_fpemu_return(int sig, void __user *fault_addr);
 
 static void emulate_load_store_insn(struct pt_regs *regs,
 	void __user *addr, unsigned int __user *pc)
@@ -108,6 +114,7 @@ static void emulate_load_store_insn(struct pt_regs *regs,
 	union mips_instruction insn;
 	unsigned long value;
 	unsigned int res;
+	void __user *fault_addr = NULL;
 
 	perf_sw_event(PERF_COUNT_SW_EMULATION_FAULTS, 1, regs, 0);
 
@@ -447,10 +454,20 @@ static void emulate_load_store_insn(struct pt_regs *regs,
 	case ldc1_op:
 	case swc1_op:
 	case sdc1_op:
-		/*
-		 * I herewith declare: this does not happen.  So send SIGBUS.
-		 */
-		goto sigbus;
+		die_if_kernel("Unaligned FP access in kernel code", regs);
+
+		BUG_ON(!used_math());
+
+		lose_fpu(1);    /* Save FPU state for the emulator. */
+		res = fpu_emulator_cop1Handler(regs, &current->thread.fpu, 1, &fault_addr);
+		own_fpu(1);     /* Restore FPU state. */
+
+                /* Signal if something went wrong. */
+		process_fpemu_return(res, fault_addr);
+
+                 if (res == 0)
+			 break;
+		 return;
 
 	/*
 	 * COP2 is available to implementor for application specific use.
