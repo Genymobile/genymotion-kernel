@@ -943,6 +943,8 @@ source "arch/arm/mach-highbank/Kconfig"
 
 source "arch/arm/mach-integrator/Kconfig"
 
+source "arch/arm/mach-lionhead/Kconfig"
+
 source "arch/arm/mach-iop32x/Kconfig"
 
 source "arch/arm/mach-iop33x/Kconfig"

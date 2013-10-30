@@ -1,0 +1,30 @@
+config ARCH_LIONHEAD
+	bool "Lionhead virtual platform" if ARCH_MULTI_V7
+	select ARCH_REQUIRE_GPIOLIB
+	select ARM_AMBA
+	select ARM_GIC
+	select ARM_TIMER_SP804
+	select CLKDEV_LOOKUP
+	select COMMON_CLK
+	select COMMON_CLK_VERSATILE
+	select CPU_V7
+	select GENERIC_CLOCKEVENTS
+	select GOLDFISH
+	select HAVE_ARM_SCU if SMP
+	select HAVE_ARM_TWD if LOCAL_TIMERS
+	select HAVE_CLK
+	select HAVE_PATA_PLATFORM
+	select HAVE_SMP
+	select ICST
+	select MIGHT_HAVE_CACHE_L2X0
+	select NO_IOPORT
+	select PLAT_VERSATILE
+	select POWER_RESET
+	select POWER_RESET_VEXPRESS
+	select POWER_SUPPLY
+	select REGULATOR_FIXED_VOLTAGE if REGULATOR
+	select VEXPRESS_CONFIG
+	help
+	  This option enables support for the "lionhead" emulated ARM platform.
+	  lionhead is based on the ARM vexpress platform, with select devices
+	  replaced by equivalent goldfish virtual devices.
