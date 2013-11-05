@@ -25,6 +25,7 @@
 #include <linux/sched.h>
 #include <linux/dma-mapping.h>
 #include <linux/uaccess.h>
+#include <linux/slab.h>
 
 MODULE_AUTHOR("Google, Inc.");
 MODULE_DESCRIPTION("Android QEMU Audio Driver");
