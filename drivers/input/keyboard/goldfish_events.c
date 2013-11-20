@@ -18,12 +18,15 @@
 #include <linux/interrupt.h>
 #include <linux/types.h>
 #include <linux/input.h>
+#include <linux/input/mt.h>
 #include <linux/kernel.h>
 #include <linux/platform_device.h>
 #include <linux/slab.h>
 
 #include <asm/irq.h>
 #include <asm/io.h>
+
+#define MAX_FINGER          10
 
 enum {
 	REG_READ        = 0x00,
@@ -128,6 +131,8 @@ static int events_probe(struct platform_device *pdev)
     events_import_bits(edev, input_dev->sndbit, EV_SND, SND_MAX);
     events_import_bits(edev, input_dev->ffbit, EV_FF, FF_MAX);
     events_import_bits(edev, input_dev->swbit, EV_SW, SW_MAX);
+
+    input_mt_init_slots(input_dev, MAX_FINGER);
 
     __raw_writel(PAGE_ABSDATA, addr + REG_SET_PAGE);
     count = __raw_readl(addr + REG_LEN) / (4 * 4);
