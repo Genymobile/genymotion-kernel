@@ -2567,7 +2567,8 @@ static int shmem_xattr_validate(const char *name)
 {
 	struct { const char *prefix; size_t len; } arr[] = {
 		{ XATTR_SECURITY_PREFIX, XATTR_SECURITY_PREFIX_LEN },
-		{ XATTR_TRUSTED_PREFIX, XATTR_TRUSTED_PREFIX_LEN }
+		{ XATTR_TRUSTED_PREFIX, XATTR_TRUSTED_PREFIX_LEN },
+		{ XATTR_USER_PREFIX, XATTR_USER_PREFIX_LEN }
 	};
 	int i;
 
