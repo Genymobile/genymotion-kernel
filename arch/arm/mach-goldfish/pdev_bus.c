@@ -25,6 +25,8 @@
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
 
+#include "pdev_bus.h"
+
 #define PDEV_BUS_OP_DONE        (0x00)
 #define PDEV_BUS_OP_REMOVE_DEV  (0x04)
 #define PDEV_BUS_OP_ADD_DEV     (0x08)
@@ -53,6 +55,7 @@ static uint32_t pdev_bus_irq;
 static LIST_HEAD(pdev_bus_new_devices);
 static LIST_HEAD(pdev_bus_registered_devices);
 static LIST_HEAD(pdev_bus_removed_devices);
+static LIST_HEAD(pdev_bus_extras_list);
 static DECLARE_WORK(pdev_bus_worker, goldfish_pdev_worker);
 
 
@@ -64,6 +67,7 @@ static void goldfish_pdev_worker(struct work_struct *work)
 	list_for_each_entry_safe(pos, n, &pdev_bus_removed_devices, list) {
 		list_del(&pos->list);
 		platform_device_unregister(&pos->pdev);
+		kfree(pos->pdev.name);
 		kfree(pos);
 	}
 	list_for_each_entry_safe(pos, n, &pdev_bus_new_devices, list) {
@@ -104,12 +108,30 @@ static void goldfish_pdev_remove(void)
 	printk("goldfish_pdev_remove could not find device at %x\n", base);
 }
 
+void goldfish_pdev_bus_add_extra_resources(struct pdev_extra_resources *extras)
+{
+	INIT_LIST_HEAD(&extras->list);
+	list_add_tail(&extras->list, &pdev_bus_extras_list);
+}
+
+static const struct pdev_extra_resources *goldfish_pdev_find_extra_resources(const char *name)
+{
+	struct pdev_extra_resources *extras;
+	list_for_each_entry(extras, &pdev_bus_extras_list, list)
+		if (strcmp(extras->name, name) == 0)
+			return extras;
+
+	return NULL;
+}
+
 static int goldfish_new_pdev(void)
 {
 	struct pdev_bus_dev *dev;
+	const struct pdev_extra_resources *extras;
+	size_t extras_idx = 1;
 	uint32_t name_len;
 	uint32_t irq = -1, irq_count;
-	int resource_count = 2;
+	int resource_count = 1;
 	uint32_t base;
 	char *name;
 
@@ -120,17 +142,28 @@ static int goldfish_new_pdev(void)
 	if(irq_count)
 		resource_count++;
 
-	dev = kzalloc(sizeof(*dev) + sizeof(struct resource) * resource_count + name_len + 1, GFP_ATOMIC);
-	if(dev == NULL)
+	name = kzalloc(name_len + 1, GFP_ATOMIC);
+	if (!name)
 		return -ENOMEM;
-
-	dev->pdev.num_resources = resource_count;
-	dev->pdev.resource = (struct resource *)(dev + 1);
-	dev->pdev.name = name = (char *)(dev->pdev.resource + resource_count);
-	dev->pdev.dev.coherent_dma_mask = ~0;
 
 	writel(name, pdev_bus_base + PDEV_BUS_GET_NAME);
 	name[name_len] = '\0';
+
+	extras = goldfish_pdev_find_extra_resources(name);
+	if (extras)
+		resource_count += extras->num_resources;
+
+	dev = kzalloc(sizeof(*dev) + sizeof(struct resource) * resource_count, GFP_ATOMIC);
+	if(dev == NULL) {
+		kfree(name);
+		return -ENOMEM;
+	}
+
+	dev->pdev.num_resources = resource_count;
+	dev->pdev.resource = (struct resource *)(dev + 1);
+	dev->pdev.name = name;
+	dev->pdev.dev.coherent_dma_mask = ~0;
+
 	dev->pdev.id = readl(pdev_bus_base + PDEV_BUS_ID);
 	dev->pdev.resource[0].start = base;
 	dev->pdev.resource[0].end = base + readl(pdev_bus_base + PDEV_BUS_IO_SIZE) - 1;
@@ -140,7 +173,12 @@ static int goldfish_new_pdev(void)
 		dev->pdev.resource[1].start = irq;
 		dev->pdev.resource[1].end = irq + irq_count - 1;
 		dev->pdev.resource[1].flags = IORESOURCE_IRQ;
+		extras_idx++;
 	}
+	if (extras)
+		memcpy(&dev->pdev.resource[extras_idx], extras->resource,
+				extras->num_resources *
+				sizeof(extras->resource[0]));
 
 	printk("goldfish_new_pdev %s at %x irq %d\n", name, base, irq);
 	list_add_tail(&dev->list, &pdev_bus_new_devices);
@@ -196,6 +234,9 @@ err_request_irq_failed:
 
 static int __devexit goldfish_pdev_bus_remove(struct platform_device *pdev)
 {
+	struct pdev_extra_resources *extras, *next;
+	list_for_each_entry_safe(extras, next, &pdev_bus_extras_list, list)
+		list_del(&extras->list);
 	free_irq(pdev_bus_irq, pdev);
 	return 0;
 }
