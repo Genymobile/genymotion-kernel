@@ -24,6 +24,7 @@
 #include <linux/mtd/nand.h>
 #include <linux/mtd/partitions.h>
 #include <linux/input.h>
+#include <linux/memblock.h>
 
 #include <mach/hardware.h>
 #include <asm/io.h>
@@ -32,6 +33,8 @@
 #include <asm/mach/flash.h>
 #include <asm/mach/map.h>
 #include <asm/mach/time.h>
+
+#include "pdev_bus.h"
 
 int GOLDFISH_READY = 0;
 
@@ -55,6 +58,22 @@ struct platform_device goldfish_pdev_bus_device = {
 	.num_resources = ARRAY_SIZE(goldfish_pdev_bus_resources),
 	.resource = goldfish_pdev_bus_resources
 };
+
+#ifdef CONFIG_FB_GOLDFISH
+static struct resource goldfish_fb_resources[] = {
+	{
+		.start = 0, /* to be filled in by goldfish_reserve() */
+		.end = 0,
+		.flags = IORESOURCE_MEM,
+	}
+};
+
+static struct pdev_extra_resources goldfish_fb_extra_resources = {
+	.name = "goldfish_fb",
+	.num_resources = ARRAY_SIZE(goldfish_fb_resources),
+	.resource = goldfish_fb_resources,
+};
+#endif
 
 static void __init goldfish_init(void)
 {
@@ -104,17 +123,28 @@ static struct map_desc goldfish_io_desc[] __initdata = {
 	},
 };
 
+static void __init goldfish_reserve(void)
+{
+#ifdef CONFIG_FB_GOLDFISH
+	struct resource *fbmem = &goldfish_fb_resources[0];
+	const size_t fbmem_size = SZ_16M;
+
+	fbmem->start = memblock_alloc(fbmem_size, PAGE_SIZE);
+	fbmem->end = fbmem->start + fbmem_size - 1;
+	goldfish_pdev_bus_add_extra_resources(&goldfish_fb_extra_resources);
+#endif
+}
+
 static void __init goldfish_map_io(void)
 {
 	iotable_init(goldfish_io_desc, ARRAY_SIZE(goldfish_io_desc));
-	// alloc memory for DMA, used for fb
-	init_consistent_dma_size(SZ_4M);
     GOLDFISH_READY = 1;
 }
 
 extern struct sys_timer goldfish_timer;
 
 MACHINE_START(GOLDFISH, "Goldfish")
+	.reserve	= goldfish_reserve,
 	.map_io		= goldfish_map_io,
 	.init_irq	= goldfish_init_irq,
 	.init_machine	= goldfish_init,
