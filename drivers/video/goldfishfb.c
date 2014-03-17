@@ -26,6 +26,8 @@
 #include <linux/interrupt.h>
 #include <linux/ioport.h>
 #include <linux/platform_device.h>
+#include <linux/vmalloc.h>
+#include <linux/memblock.h>
 #ifdef CONFIG_ANDROID_POWER
 #include <linux/android_power.h>
 #endif
@@ -63,6 +65,7 @@ struct goldfish_fb {
 #ifdef CONFIG_ANDROID_POWER
         android_early_suspend_t early_suspend;
 #endif
+        bool memblock;
 };
 
 static irqreturn_t
@@ -188,6 +191,81 @@ static struct fb_ops goldfish_fb_ops = {
 	.fb_imageblit   = cfb_imageblit,
 };
 
+static int __devinit goldfish_fb_memblock_map(struct goldfish_fb *fb,
+        struct platform_device *pdev, size_t framesize)
+{
+	struct resource *fbmem;
+	phys_addr_t base;
+	size_t size;
+	unsigned long base_pfn;
+	unsigned int page_count;
+	struct page **pages;
+	char __iomem *vaddr;
+	unsigned int i;
+	int ret;
+
+	fbmem = platform_get_resource(pdev, IORESOURCE_MEM, 1);
+	if (!fbmem) {
+		dev_err(&pdev->dev, "no framebuffer memblock\n");
+		return -ENOENT;
+	}
+
+	base = fbmem->start;
+	BUG_ON(base != PAGE_ALIGN(base));
+	size = resource_size(fbmem);
+	BUG_ON(size != PAGE_ALIGN(size));
+
+	if (size < framesize) {
+		dev_err(&pdev->dev, "framebuffer memblock found, but size %zu < minimum size %zu\n",
+				size, framesize);
+		ret = -ENOMEM;
+		goto err;
+	}
+
+	if (size > PAGE_ALIGN(framesize)) {
+		size_t unused_base = base + PAGE_ALIGN(framesize);
+		size_t unused_size = size - PAGE_ALIGN(framesize);
+		memblock_free(unused_base, unused_size);
+		size = PAGE_ALIGN(framesize);
+	}
+
+	page_count = size / PAGE_SIZE;
+	pages = kmalloc_array(page_count, sizeof(pages[0]), GFP_KERNEL);
+	if (!pages) {
+		dev_err(&pdev->dev, "allocating page list failed\n");
+		ret = -ENOMEM;
+		goto err;
+	}
+
+	base_pfn = PFN_DOWN(base);
+	for (i = 0; i < page_count; i++)
+		pages[i] = pfn_to_page(base_pfn + i);
+
+	vaddr = vmap(pages, page_count, VM_MAP, PAGE_KERNEL);
+	kfree(pages);
+	if (!vaddr) {
+		dev_err(&pdev->dev, "mapping framebuffer memblock failed\n");
+		ret = -ENOMEM;
+		goto err;
+	}
+
+	fb->fb.screen_base = vaddr;
+	fb->fb.fix.smem_start = base;
+	fb->fb.fix.smem_len = size;
+	fb->memblock = true;
+	return 0;
+
+err:
+	memblock_free(base, size);
+	return ret;
+}
+
+static void __devinit goldfish_fb_memblock_free(struct goldfish_fb *fb)
+{
+	vunmap(fb->fb.screen_base);
+	memblock_free(fb->fb.fix.smem_start, fb->fb.fix.smem_len);
+}
+
 static int __devinit goldfish_fb_dma_alloc(struct goldfish_fb *fb,
         struct platform_device *pdev, u32 width, u32 height, size_t framesize)
 {
@@ -225,6 +303,15 @@ static void __devinit goldfish_fb_dma_free(struct goldfish_fb *fb,
 #else
 #error NOT SUPPORTED
 #endif
+}
+
+static void __devinit goldfish_fb_mem_free(struct goldfish_fb *fb,
+		struct platform_device *pdev)
+{
+	if (fb->memblock)
+		goldfish_fb_memblock_free(fb);
+	else
+		goldfish_fb_dma_free(fb, pdev);
 }
 
 static void __devinit goldfish_fb_regs_free(struct goldfish_fb *fb)
@@ -304,7 +391,9 @@ static int __devinit goldfish_fb_probe(struct platform_device *pdev)
 	fb->fb.var.blue.length = 5;
 
 	framesize = width * height * 2 * 2;
-	ret = goldfish_fb_dma_alloc(fb, pdev, width, height, framesize);
+	ret = goldfish_fb_memblock_map(fb, pdev, framesize);
+	if (ret < 0)
+		ret = goldfish_fb_dma_alloc(fb, pdev, width, height, framesize);
 	if (ret < 0)
 		goto err_alloc_screen_base_failed;
 
@@ -336,7 +425,7 @@ err_register_framebuffer_failed:
 	free_irq(fb->irq, fb);
 err_request_irq_failed:
 err_fb_set_var_failed:
-	goldfish_fb_dma_free(fb, pdev);
+	goldfish_fb_mem_free(fb, pdev);
 err_alloc_screen_base_failed:
 err_no_irq:
 	goldfish_fb_regs_free(fb);
@@ -355,7 +444,7 @@ static int __devinit goldfish_fb_remove(struct platform_device *pdev)
 #endif
 	unregister_framebuffer(&fb->fb);
 	free_irq(fb->irq, fb);
-	goldfish_fb_dma_free(fb, pdev);
+	goldfish_fb_mem_free(fb, pdev);
 	goldfish_fb_regs_free(fb);
 	kfree(fb);
 	return 0;
