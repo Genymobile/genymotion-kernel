@@ -30,7 +30,7 @@
  *
  *	Corrupted registers: x0-x7, x9-x11
  */
-ENTRY(__flush_dcache_all)
+__flush_dcache_all:
 	dsb	sy				// ensure ordering with previous memory accesses
 	mrs	x0, clidr_el1			// read clidr
 	and	x3, x0, #0x7000000		// extract loc from clidr
@@ -146,7 +146,7 @@ ENDPROC(flush_icache_range)
 ENDPROC(__flush_cache_user_range)
 
 /*
- *	__flush_kern_dcache_page(kaddr)
+ *	__flush_dcache_area(kaddr, size)
  *
  *	Ensure that the data held in the page kaddr is written back to the
  *	page in question.
