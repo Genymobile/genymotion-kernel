@@ -55,6 +55,7 @@
 
 #include <net/ipv6.h>
 #include <net/ip6_checksum.h>
+#include <net/ping.h>
 #include <net/protocol.h>
 #include <net/raw.h>
 #include <net/rawv6.h>
@@ -79,10 +80,22 @@ static inline struct sock *icmpv6_sk(struct net *net)
 	return net->ipv6.icmp_sk[smp_processor_id()];
 }
 
+static void icmpv6_err(struct sk_buff *skb, struct inet6_skb_parm *opt,
+		       u8 type, u8 code, int offset, __be32 info)
+{
+	/* icmpv6_notify checks 8 bytes can be pulled, icmp6hdr is 8 bytes */
+	struct icmp6hdr *icmp6 = (struct icmp6hdr *) (skb->data + offset);
+
+	if (!(type & ICMPV6_INFOMSG_MASK))
+		if (icmp6->icmp6_type == ICMPV6_ECHO_REQUEST)
+			ping_err(skb, offset, info);
+}
+
 static int icmpv6_rcv(struct sk_buff *skb);
 
 static const struct inet6_protocol icmpv6_protocol = {
 	.handler	=	icmpv6_rcv,
+	.err_handler	=	icmpv6_err,
 	.flags		=	INET6_PROTO_NOPOLICY|INET6_PROTO_FINAL,
 };
 
@@ -217,7 +230,8 @@ static __inline__ int opt_unrec(struct sk_buff *skb, __u32 offset)
 	return (*op & 0xC0) == 0x80;
 }
 
-static int icmpv6_push_pending_frames(struct sock *sk, struct flowi6 *fl6, struct icmp6hdr *thdr, int len)
+int icmpv6_push_pending_frames(struct sock *sk, struct flowi6 *fl6,
+			       struct icmp6hdr *thdr, int len)
 {
 	struct sk_buff *skb;
 	struct icmp6hdr *icmp6h;
@@ -300,8 +314,8 @@ static void mip6_addr_swap(struct sk_buff *skb)
 static inline void mip6_addr_swap(struct sk_buff *skb) {}
 #endif
 
-static struct dst_entry *icmpv6_route_lookup(struct net *net, struct sk_buff *skb,
-					     struct sock *sk, struct flowi6 *fl6)
+struct dst_entry *icmpv6_route_lookup(struct net *net, struct sk_buff *skb,
+				      struct sock *sk, struct flowi6 *fl6)
 {
 	struct dst_entry *dst, *dst2;
 	struct flowi6 fl2;
@@ -382,6 +396,7 @@ void icmpv6_send(struct sk_buff *skb, u8 type, u8 code, __u32 info)
 	int len;
 	int hlimit;
 	int err = 0;
+	u32 mark = IP6_REPLY_MARK(net, skb->mark);
 
 	if ((u8 *)hdr < skb->head ||
 	    (skb->network_header + sizeof(*hdr)) > skb->tail)
@@ -447,6 +462,7 @@ void icmpv6_send(struct sk_buff *skb, u8 type, u8 code, __u32 info)
 	fl6.daddr = hdr->saddr;
 	if (saddr)
 		fl6.saddr = *saddr;
+	fl6.flowi6_mark = mark;
 	fl6.flowi6_oif = iif;
 	fl6.fl6_icmp_type = type;
 	fl6.fl6_icmp_code = code;
@@ -455,6 +471,7 @@ void icmpv6_send(struct sk_buff *skb, u8 type, u8 code, __u32 info)
 	sk = icmpv6_xmit_lock(net);
 	if (sk == NULL)
 		return;
+	sk->sk_mark = mark;
 	np = inet6_sk(sk);
 
 	if (!icmpv6_xrlim_allow(sk, type, &fl6))
@@ -529,6 +546,7 @@ static void icmpv6_echo_reply(struct sk_buff *skb)
 	struct dst_entry *dst;
 	int err = 0;
 	int hlimit;
+	u32 mark = IP6_REPLY_MARK(net, skb->mark);
 
 	saddr = &ipv6_hdr(skb)->daddr;
 
@@ -545,11 +563,13 @@ static void icmpv6_echo_reply(struct sk_buff *skb)
 		fl6.saddr = *saddr;
 	fl6.flowi6_oif = skb->dev->ifindex;
 	fl6.fl6_icmp_type = ICMPV6_ECHO_REPLY;
+	fl6.flowi6_mark = mark;
 	security_skb_classify_flow(skb, flowi6_to_flowi(&fl6));
 
 	sk = icmpv6_xmit_lock(net);
 	if (sk == NULL)
 		return;
+	sk->sk_mark = mark;
 	np = inet6_sk(sk);
 
 	if (!fl6.flowi6_oif && ipv6_addr_is_multicast(&fl6.daddr))
@@ -594,7 +614,7 @@ out:
 	icmpv6_xmit_unlock(sk);
 }
 
-static void icmpv6_notify(struct sk_buff *skb, u8 type, u8 code, __be32 info)
+void icmpv6_notify(struct sk_buff *skb, u8 type, u8 code, __be32 info)
 {
 	const struct inet6_protocol *ipprot;
 	int inner_offset;
@@ -687,7 +707,8 @@ static int icmpv6_rcv(struct sk_buff *skb)
 		skb->csum = ~csum_unfold(csum_ipv6_magic(saddr, daddr, skb->len,
 					     IPPROTO_ICMPV6, 0));
 		if (__skb_checksum_complete(skb)) {
-			LIMIT_NETDEBUG(KERN_DEBUG "ICMPv6 checksum failed [%pI6 > %pI6]\n",
+			LIMIT_NETDEBUG(KERN_DEBUG
+				       "ICMPv6 checksum failed [%pI6c > %pI6c]\n",
 				       saddr, daddr);
 			goto discard_it;
 		}
@@ -708,7 +729,7 @@ static int icmpv6_rcv(struct sk_buff *skb)
 		break;
 
 	case ICMPV6_ECHO_REPLY:
-		/* we couldn't care less */
+		ping_rcv(skb);
 		break;
 
 	case ICMPV6_PKT_TOOBIG:
@@ -917,6 +938,14 @@ static const struct icmp6_err {
 		.err	= ECONNREFUSED,
 		.fatal	= 1,
 	},
+	{	/* POLICY_FAIL */
+		.err	= EACCES,
+		.fatal	= 1,
+	},
+	{	/* REJECT_ROUTE	*/
+		.err	= EACCES,
+		.fatal	= 1,
+	},
 };
 
 int icmpv6_err_convert(u8 type, u8 code, int *err)
@@ -928,7 +957,7 @@ int icmpv6_err_convert(u8 type, u8 code, int *err)
 	switch (type) {
 	case ICMPV6_DEST_UNREACH:
 		fatal = 1;
-		if (code <= ICMPV6_PORT_UNREACH) {
+		if (code < ARRAY_SIZE(tab_unreach)) {
 			*err  = tab_unreach[code].err;
 			fatal = tab_unreach[code].fatal;
 		}
