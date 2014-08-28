@@ -265,9 +265,6 @@ config GENERIC_BUG
 	def_bool y
 	depends on BUG
 
-config GOLDFISH
-	bool
-
 source "init/Kconfig"
 
 source "kernel/Kconfig.freezer"
