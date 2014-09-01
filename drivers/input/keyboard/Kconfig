@@ -450,6 +450,11 @@ config KEYBOARD_SAMSUNG
 	  To compile this driver as a module, choose M here: the
 	  module will be called samsung-keypad.
 
+config KEYBOARD_GOLDFISH_EVENTS
+	tristate "Generic Input Event device for Goldfish"
+	help
+	  no help
+
 config KEYBOARD_STOWAWAY
 	tristate "Stowaway keyboard"
 	select SERIO

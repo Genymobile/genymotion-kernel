@@ -1,7 +1,7 @@
 /*
  * YAFFS: Yet Another Flash File System. A NAND-flash specific file system.
  *
- * Copyright (C) 2002-2010 Aleph One Ltd.
+ * Copyright (C) 2002-2011 Aleph One Ltd.
  *   for Toby Churchill Ltd and Brightstar Engineering
  *
  * Created by Charles Manning <charles@aleph1.co.uk>
@@ -20,6 +20,7 @@
 #include "yaffs_getblockinfo.h"
 #include "yaffs_verify.h"
 #include "yaffs_attribs.h"
+#include "yaffs_summary.h"
 
 /*
  * Checkpoints are really no benefit on very small partitions.
@@ -28,7 +29,6 @@
  * the partition is at least this big.
  */
 #define YAFFS_CHECKPOINT_MIN_BLOCKS 60
-
 #define YAFFS_SMALL_HOLE_THRESHOLD 4
 
 /*
@@ -55,7 +55,8 @@ void yaffs_calc_oldest_dirty_seq(struct yaffs_dev *dev)
 	for (i = dev->internal_start_block; i <= dev->internal_end_block; i++) {
 		if (b->block_state == YAFFS_BLOCK_STATE_FULL &&
 		    (b->pages_in_use - b->soft_del_pages) <
-		    dev->param.chunks_per_block && b->seq_number < seq) {
+		    dev->param.chunks_per_block &&
+		    b->seq_number < seq) {
 			seq = b->seq_number;
 			block_no = i;
 		}
@@ -66,7 +67,6 @@ void yaffs_calc_oldest_dirty_seq(struct yaffs_dev *dev)
 		dev->oldest_dirty_seq = seq;
 		dev->oldest_dirty_block = block_no;
 	}
-
 }
 
 void yaffs2_find_oldest_dirty_seq(struct yaffs_dev *dev)
@@ -81,7 +81,7 @@ void yaffs2_find_oldest_dirty_seq(struct yaffs_dev *dev)
 /*
  * yaffs_clear_oldest_dirty_seq()
  * Called when a block is erased or marked bad. (ie. when its seq_number
- * becomes invalid). If the value matches the oldest then we clear 
+ * becomes invalid). If the value matches the oldest then we clear
  * dev->oldest_dirty_seq to force its recomputation.
  */
 void yaffs2_clear_oldest_dirty_seq(struct yaffs_dev *dev,
@@ -127,8 +127,8 @@ int yaffs_block_ok_for_gc(struct yaffs_dev *dev, struct yaffs_block_info *bi)
 
 	yaffs2_find_oldest_dirty_seq(dev);
 
-	/* Can't do gc of this block if there are any blocks older than this one that have
-	 * discarded pages.
+	/* Can't do gc of this block if there are any blocks older than this
+	 * one that have discarded pages.
 	 */
 	return (bi->seq_number <= dev->oldest_dirty_seq);
 }
@@ -138,13 +138,11 @@ int yaffs_block_ok_for_gc(struct yaffs_dev *dev, struct yaffs_block_info *bi)
  * periodically finds the oldest full block by sequence number for refreshing.
  * Only for yaffs2.
  */
-u32 yaffs2_find_refresh_block(struct yaffs_dev * dev)
+u32 yaffs2_find_refresh_block(struct yaffs_dev *dev)
 {
 	u32 b;
-
 	u32 oldest = 0;
 	u32 oldest_seq = 0;
-
 	struct yaffs_block_info *bi;
 
 	if (!dev->param.is_yaffs2)
@@ -210,29 +208,29 @@ int yaffs2_checkpt_required(struct yaffs_dev *dev)
 int yaffs_calc_checkpt_blocks_required(struct yaffs_dev *dev)
 {
 	int retval;
+	int n_bytes = 0;
+	int n_blocks;
+	int dev_blocks;
 
 	if (!dev->param.is_yaffs2)
 		return 0;
 
 	if (!dev->checkpoint_blocks_required && yaffs2_checkpt_required(dev)) {
 		/* Not a valid value so recalculate */
-		int n_bytes = 0;
-		int n_blocks;
-		int dev_blocks =
-		    (dev->param.end_block - dev->param.start_block + 1);
-
+		dev_blocks = dev->param.end_block - dev->param.start_block + 1;
 		n_bytes += sizeof(struct yaffs_checkpt_validity);
 		n_bytes += sizeof(struct yaffs_checkpt_dev);
 		n_bytes += dev_blocks * sizeof(struct yaffs_block_info);
 		n_bytes += dev_blocks * dev->chunk_bit_stride;
 		n_bytes +=
-		    (sizeof(struct yaffs_checkpt_obj) +
-		     sizeof(u32)) * (dev->n_obj);
-		n_bytes += (dev->tnode_size + sizeof(u32)) * (dev->n_tnodes);
+		    (sizeof(struct yaffs_checkpt_obj) + sizeof(u32)) *
+		    dev->n_obj;
+		n_bytes += (dev->tnode_size + sizeof(u32)) * dev->n_tnodes;
 		n_bytes += sizeof(struct yaffs_checkpt_validity);
 		n_bytes += sizeof(u32);	/* checksum */
 
-		/* Round up and add 2 blocks to allow for some bad blocks, so add 3 */
+		/* Round up and add 2 blocks to allow for some bad blocks,
+		 * so add 3 */
 
 		n_blocks =
 		    (n_bytes /
@@ -312,9 +310,7 @@ static int yaffs2_wr_checkpt_dev(struct yaffs_dev *dev)
 {
 	struct yaffs_checkpt_dev cp;
 	u32 n_bytes;
-	u32 n_blocks =
-	    (dev->internal_end_block - dev->internal_start_block + 1);
-
+	u32 n_blocks = dev->internal_end_block - dev->internal_start_block + 1;
 	int ok;
 
 	/* Write device runtime values */
@@ -322,22 +318,20 @@ static int yaffs2_wr_checkpt_dev(struct yaffs_dev *dev)
 	cp.struct_type = sizeof(cp);
 
 	ok = (yaffs2_checkpt_wr(dev, &cp, sizeof(cp)) == sizeof(cp));
+	if (!ok)
+		return 0;
 
 	/* Write block info */
-	if (ok) {
-		n_bytes = n_blocks * sizeof(struct yaffs_block_info);
-		ok = (yaffs2_checkpt_wr(dev, dev->block_info, n_bytes) ==
-		      n_bytes);
-	}
+	n_bytes = n_blocks * sizeof(struct yaffs_block_info);
+	ok = (yaffs2_checkpt_wr(dev, dev->block_info, n_bytes) == n_bytes);
+	if (!ok)
+		return 0;
 
 	/* Write chunk bits */
-	if (ok) {
-		n_bytes = n_blocks * dev->chunk_bit_stride;
-		ok = (yaffs2_checkpt_wr(dev, dev->chunk_bits, n_bytes) ==
-		      n_bytes);
-	}
-	return ok ? 1 : 0;
+	n_bytes = n_blocks * dev->chunk_bit_stride;
+	ok = (yaffs2_checkpt_wr(dev, dev->chunk_bits, n_bytes) == n_bytes);
 
+	return ok ? 1 : 0;
 }
 
 static int yaffs2_rd_checkpt_dev(struct yaffs_dev *dev)
@@ -346,7 +340,6 @@ static int yaffs2_rd_checkpt_dev(struct yaffs_dev *dev)
 	u32 n_bytes;
 	u32 n_blocks =
 	    (dev->internal_end_block - dev->internal_start_block + 1);
-
 	int ok;
 
 	ok = (yaffs2_checkpt_rd(dev, &cp, sizeof(cp)) == sizeof(cp));
@@ -364,6 +357,7 @@ static int yaffs2_rd_checkpt_dev(struct yaffs_dev *dev)
 
 	if (!ok)
 		return 0;
+
 	n_bytes = n_blocks * dev->chunk_bit_stride;
 
 	ok = (yaffs2_checkpt_rd(dev, dev->chunk_bits, n_bytes) == n_bytes);
@@ -374,7 +368,6 @@ static int yaffs2_rd_checkpt_dev(struct yaffs_dev *dev)
 static void yaffs2_obj_checkpt_obj(struct yaffs_checkpt_obj *cp,
 				   struct yaffs_obj *obj)
 {
-
 	cp->obj_id = obj->obj_id;
 	cp->parent_id = (obj->parent) ? obj->parent->obj_id : 0;
 	cp->hdr_chunk = obj->hdr_chunk;
@@ -394,10 +387,9 @@ static void yaffs2_obj_checkpt_obj(struct yaffs_checkpt_obj *cp,
 		cp->size_or_equiv_obj = obj->variant.hardlink_variant.equiv_id;
 }
 
-static int taffs2_checkpt_obj_to_obj(struct yaffs_obj *obj,
+static int yaffs2_checkpt_obj_to_obj(struct yaffs_obj *obj,
 				     struct yaffs_checkpt_obj *cp)
 {
-
 	struct yaffs_obj *parent;
 
 	if (obj->variant_type != cp->variant_type) {
@@ -412,8 +404,8 @@ static int taffs2_checkpt_obj_to_obj(struct yaffs_obj *obj,
 
 	if (cp->parent_id)
 		parent = yaffs_find_or_create_by_number(obj->my_dev,
-							cp->parent_id,
-							YAFFS_OBJECT_TYPE_DIRECTORY);
+						cp->parent_id,
+						YAFFS_OBJECT_TYPE_DIRECTORY);
 	else
 		parent = NULL;
 
@@ -457,39 +449,33 @@ static int yaffs2_checkpt_tnode_worker(struct yaffs_obj *in,
 	int i;
 	struct yaffs_dev *dev = in->my_dev;
 	int ok = 1;
+	u32 base_offset;
 
-	if (tn) {
-		if (level > 0) {
+	if (!tn)
+		return 1;
 
-			for (i = 0; i < YAFFS_NTNODES_INTERNAL && ok; i++) {
-				if (tn->internal[i]) {
-					ok = yaffs2_checkpt_tnode_worker(in,
-									 tn->
-									 internal
-									 [i],
-									 level -
-									 1,
-									 (chunk_offset
-									  <<
-									  YAFFS_TNODES_INTERNAL_BITS)
-									 + i);
-				}
-			}
-		} else if (level == 0) {
-			u32 base_offset =
-			    chunk_offset << YAFFS_TNODES_LEVEL0_BITS;
-			ok = (yaffs2_checkpt_wr
-			      (dev, &base_offset,
-			       sizeof(base_offset)) == sizeof(base_offset));
-			if (ok)
-				ok = (yaffs2_checkpt_wr
-				      (dev, tn,
-				       dev->tnode_size) == dev->tnode_size);
+	if (level > 0) {
+		for (i = 0; i < YAFFS_NTNODES_INTERNAL && ok; i++) {
+			if (!tn->internal[i])
+				continue;
+			ok = yaffs2_checkpt_tnode_worker(in,
+				 tn->internal[i],
+				 level - 1,
+				 (chunk_offset <<
+				  YAFFS_TNODES_INTERNAL_BITS) + i);
 		}
+		return ok;
 	}
 
-	return ok;
+	/* Level 0 tnode */
+	base_offset = chunk_offset << YAFFS_TNODES_LEVEL0_BITS;
+	ok = (yaffs2_checkpt_wr(dev, &base_offset, sizeof(base_offset)) ==
+			sizeof(base_offset));
+	if (ok)
+		ok = (yaffs2_checkpt_wr(dev, tn, dev->tnode_size) ==
+			dev->tnode_size);
 
+	return ok;
 }
 
 static int yaffs2_wr_checkpt_tnodes(struct yaffs_obj *obj)
@@ -497,16 +483,16 @@ static int yaffs2_wr_checkpt_tnodes(struct yaffs_obj *obj)
 	u32 end_marker = ~0;
 	int ok = 1;
 
-	if (obj->variant_type == YAFFS_OBJECT_TYPE_FILE) {
-		ok = yaffs2_checkpt_tnode_worker(obj,
-						 obj->variant.file_variant.top,
-						 obj->variant.file_variant.
-						 top_level, 0);
-		if (ok)
-			ok = (yaffs2_checkpt_wr
-			      (obj->my_dev, &end_marker,
-			       sizeof(end_marker)) == sizeof(end_marker));
-	}
+	if (obj->variant_type != YAFFS_OBJECT_TYPE_FILE)
+		return ok;
+
+	ok = yaffs2_checkpt_tnode_worker(obj,
+					 obj->variant.file_variant.top,
+					 obj->variant.file_variant.
+					 top_level, 0);
+	if (ok)
+		ok = (yaffs2_checkpt_wr(obj->my_dev, &end_marker,
+				sizeof(end_marker)) == sizeof(end_marker));
 
 	return ok ? 1 : 0;
 }
@@ -528,12 +514,11 @@ static int yaffs2_rd_checkpt_tnodes(struct yaffs_obj *obj)
 		/* Read level 0 tnode */
 
 		tn = yaffs_get_tnode(dev);
-		if (tn) {
+		if (tn)
 			ok = (yaffs2_checkpt_rd(dev, tn, dev->tnode_size) ==
-			      dev->tnode_size);
-		} else {
+				dev->tnode_size);
+		else
 			ok = 0;
-                }
 
 		if (tn && ok)
 			ok = yaffs_add_find_tnode_0(dev,
@@ -544,7 +529,6 @@ static int yaffs2_rd_checkpt_tnodes(struct yaffs_obj *obj)
 			ok = (yaffs2_checkpt_rd
 			      (dev, &base_chunk,
 			       sizeof(base_chunk)) == sizeof(base_chunk));
-
 	}
 
 	yaffs_trace(YAFFS_TRACE_CHECKPOINT,
@@ -568,34 +552,29 @@ static int yaffs2_wr_checkpt_objs(struct yaffs_dev *dev)
 
 	for (i = 0; ok && i < YAFFS_NOBJECT_BUCKETS; i++) {
 		list_for_each(lh, &dev->obj_bucket[i].list) {
-			if (lh) {
-				obj =
-				    list_entry(lh, struct yaffs_obj, hash_link);
-				if (!obj->defered_free) {
-					yaffs2_obj_checkpt_obj(&cp, obj);
-					cp.struct_type = sizeof(cp);
+			obj = list_entry(lh, struct yaffs_obj, hash_link);
+			if (!obj->defered_free) {
+				yaffs2_obj_checkpt_obj(&cp, obj);
+				cp.struct_type = sizeof(cp);
 
-					yaffs_trace(YAFFS_TRACE_CHECKPOINT,
-						"Checkpoint write object %d parent %d type %d chunk %d obj addr %p",
-						cp.obj_id, cp.parent_id,
-						cp.variant_type, cp.hdr_chunk, obj);
+				yaffs_trace(YAFFS_TRACE_CHECKPOINT,
+					"Checkpoint write object %d parent %d type %d chunk %d obj addr %p",
+					cp.obj_id, cp.parent_id,
+					cp.variant_type, cp.hdr_chunk, obj);
 
-					ok = (yaffs2_checkpt_wr
-					      (dev, &cp,
-					       sizeof(cp)) == sizeof(cp));
+				ok = (yaffs2_checkpt_wr(dev, &cp,
+						sizeof(cp)) == sizeof(cp));
 
-					if (ok
-					    && obj->variant_type ==
-					    YAFFS_OBJECT_TYPE_FILE)
-						ok = yaffs2_wr_checkpt_tnodes
-						    (obj);
-				}
+				if (ok &&
+					obj->variant_type ==
+					YAFFS_OBJECT_TYPE_FILE)
+					ok = yaffs2_wr_checkpt_tnodes(obj);
 			}
 		}
 	}
 
 	/* Dump end of list */
-	memset(&cp, 0xFF, sizeof(struct yaffs_checkpt_obj));
+	memset(&cp, 0xff, sizeof(struct yaffs_checkpt_obj));
 	cp.struct_type = sizeof(cp);
 
 	if (ok)
@@ -610,7 +589,8 @@ static int yaffs2_rd_checkpt_objs(struct yaffs_dev *dev)
 	struct yaffs_checkpt_obj cp;
 	int ok = 1;
 	int done = 0;
-	struct yaffs_obj *hard_list = NULL;
+	LIST_HEAD(hard_list);
+
 
 	while (ok && !done) {
 		ok = (yaffs2_checkpt_rd(dev, &cp, sizeof(cp)) == sizeof(cp));
@@ -633,25 +613,24 @@ static int yaffs2_rd_checkpt_objs(struct yaffs_dev *dev)
 			    yaffs_find_or_create_by_number(dev, cp.obj_id,
 							   cp.variant_type);
 			if (obj) {
-				ok = taffs2_checkpt_obj_to_obj(obj, &cp);
+				ok = yaffs2_checkpt_obj_to_obj(obj, &cp);
 				if (!ok)
 					break;
-				if (obj->variant_type == YAFFS_OBJECT_TYPE_FILE) {
+				if (obj->variant_type ==
+					YAFFS_OBJECT_TYPE_FILE) {
 					ok = yaffs2_rd_checkpt_tnodes(obj);
 				} else if (obj->variant_type ==
-					   YAFFS_OBJECT_TYPE_HARDLINK) {
-					obj->hard_links.next =
-					    (struct list_head *)hard_list;
-					hard_list = obj;
+					YAFFS_OBJECT_TYPE_HARDLINK) {
+					list_add(&obj->hard_links, &hard_list);
 				}
 			} else {
 				ok = 0;
-                        }
+			}
 		}
 	}
 
 	if (ok)
-		yaffs_link_fixup(dev, hard_list);
+		yaffs_link_fixup(dev, &hard_list);
 
 	return ok ? 1 : 0;
 }
@@ -664,7 +643,7 @@ static int yaffs2_wr_checkpt_sum(struct yaffs_dev *dev)
 	yaffs2_get_checkpt_sum(dev, &checkpt_sum);
 
 	ok = (yaffs2_checkpt_wr(dev, &checkpt_sum, sizeof(checkpt_sum)) ==
-	      sizeof(checkpt_sum));
+		sizeof(checkpt_sum));
 
 	if (!ok)
 		return 0;
@@ -681,7 +660,7 @@ static int yaffs2_rd_checkpt_sum(struct yaffs_dev *dev)
 	yaffs2_get_checkpt_sum(dev, &checkpt_sum0);
 
 	ok = (yaffs2_checkpt_rd(dev, &checkpt_sum1, sizeof(checkpt_sum1)) ==
-	      sizeof(checkpt_sum1));
+		sizeof(checkpt_sum1));
 
 	if (!ok)
 		return 0;
@@ -792,7 +771,6 @@ static int yaffs2_rd_checkpt_data(struct yaffs_dev *dev)
 		dev->is_checkpointed = 0;
 
 	return ok ? 1 : 0;
-
 }
 
 void yaffs2_checkpt_invalidate(struct yaffs_dev *dev)
@@ -807,7 +785,6 @@ void yaffs2_checkpt_invalidate(struct yaffs_dev *dev)
 
 int yaffs_checkpoint_save(struct yaffs_dev *dev)
 {
-
 	yaffs_trace(YAFFS_TRACE_CHECKPOINT,
 		"save entry: is_checkpointed %d",
 		dev->is_checkpointed);
@@ -831,6 +808,7 @@ int yaffs_checkpoint_save(struct yaffs_dev *dev)
 int yaffs2_checkpt_restore(struct yaffs_dev *dev)
 {
 	int retval;
+
 	yaffs_trace(YAFFS_TRACE_CHECKPOINT,
 		"restore entry: is_checkpointed %d",
 		dev->is_checkpointed);
@@ -854,17 +832,15 @@ int yaffs2_handle_hole(struct yaffs_obj *obj, loff_t new_size)
 {
 	/* if new_size > old_file_size.
 	 * We're going to be writing a hole.
-	 * If the hole is small then write zeros otherwise write a start of hole marker.
+	 * If the hole is small then write zeros otherwise write a start
+	 * of hole marker.
 	 */
-
 	loff_t old_file_size;
-	int increase;
+	loff_t increase;
 	int small_hole;
 	int result = YAFFS_OK;
 	struct yaffs_dev *dev = NULL;
-
 	u8 *local_buffer = NULL;
-
 	int small_increase_ok = 0;
 
 	if (!obj)
@@ -893,11 +869,11 @@ int yaffs2_handle_hole(struct yaffs_obj *obj, loff_t new_size)
 		small_hole = 0;
 
 	if (small_hole)
-		local_buffer = yaffs_get_temp_buffer(dev, __LINE__);
+		local_buffer = yaffs_get_temp_buffer(dev);
 
 	if (local_buffer) {
 		/* fill hole with zero bytes */
-		int pos = old_file_size;
+		loff_t pos = old_file_size;
 		int this_write;
 		int written;
 		memset(local_buffer, 0, dev->data_bytes_per_chunk);
@@ -915,12 +891,12 @@ int yaffs2_handle_hole(struct yaffs_obj *obj, loff_t new_size)
 				increase -= this_write;
 			} else {
 				small_increase_ok = 0;
-                        }
+			}
 		}
 
-		yaffs_release_temp_buffer(dev, local_buffer, __LINE__);
+		yaffs_release_temp_buffer(dev, local_buffer);
 
-		/* If we were out of space then reverse any chunks we've added */
+		/* If out of space then reverse any chunks we've added */
 		if (!small_increase_ok)
 			yaffs_resize_file_down(obj, old_file_size);
 	}
@@ -934,7 +910,6 @@ int yaffs2_handle_hole(struct yaffs_obj *obj, loff_t new_size)
 	}
 
 	return result;
-
 }
 
 struct yaffs_block_index {
@@ -948,44 +923,443 @@ static int yaffs2_ybicmp(const void *a, const void *b)
 	int bseq = ((struct yaffs_block_index *)b)->seq;
 	int ablock = ((struct yaffs_block_index *)a)->block;
 	int bblock = ((struct yaffs_block_index *)b)->block;
+
 	if (aseq == bseq)
 		return ablock - bblock;
-	else
-		return aseq - bseq;
+
+	return aseq - bseq;
+}
+
+static inline int yaffs2_scan_chunk(struct yaffs_dev *dev,
+		struct yaffs_block_info *bi,
+		int blk, int chunk_in_block,
+		int *found_chunks,
+		u8 *chunk_data,
+		struct list_head *hard_list,
+		int summary_available)
+{
+	struct yaffs_obj_hdr *oh;
+	struct yaffs_obj *in;
+	struct yaffs_obj *parent;
+	int equiv_id;
+	loff_t file_size;
+	int is_shrink;
+	int is_unlinked;
+	struct yaffs_ext_tags tags;
+	int result;
+	int alloc_failed = 0;
+	int chunk = blk * dev->param.chunks_per_block + chunk_in_block;
+	struct yaffs_file_var *file_var;
+	struct yaffs_hardlink_var *hl_var;
+	struct yaffs_symlink_var *sl_var;
+
+	if (summary_available) {
+		result = yaffs_summary_fetch(dev, &tags, chunk_in_block);
+		tags.seq_number = bi->seq_number;
+	}
+
+	if (!summary_available || tags.obj_id == 0) {
+		result = yaffs_rd_chunk_tags_nand(dev, chunk, NULL, &tags);
+		dev->tags_used++;
+	} else {
+		dev->summary_used++;
+	}
+
+	/* Let's have a good look at this chunk... */
+
+	if (!tags.chunk_used) {
+		/* An unassigned chunk in the block.
+		 * If there are used chunks after this one, then
+		 * it is a chunk that was skipped due to failing
+		 * the erased check. Just skip it so that it can
+		 * be deleted.
+		 * But, more typically, We get here when this is
+		 * an unallocated chunk and his means that
+		 * either the block is empty or this is the one
+		 * being allocated from
+		 */
+
+		if (*found_chunks) {
+			/* This is a chunk that was skipped due
+			 * to failing the erased check */
+		} else if (chunk_in_block == 0) {
+			/* We're looking at the first chunk in
+			 * the block so the block is unused */
+			bi->block_state = YAFFS_BLOCK_STATE_EMPTY;
+			dev->n_erased_blocks++;
+		} else {
+			if (bi->block_state == YAFFS_BLOCK_STATE_NEEDS_SCAN ||
+			    bi->block_state == YAFFS_BLOCK_STATE_ALLOCATING) {
+				if (dev->seq_number == bi->seq_number) {
+					/* Allocating from this block*/
+					yaffs_trace(YAFFS_TRACE_SCAN,
+					    " Allocating from %d %d",
+					    blk, chunk_in_block);
+
+					bi->block_state =
+						YAFFS_BLOCK_STATE_ALLOCATING;
+					dev->alloc_block = blk;
+					dev->alloc_page = chunk_in_block;
+					dev->alloc_block_finder = blk;
+				} else {
+					/* This is a partially written block
+					 * that is not the current
+					 * allocation block.
+					 */
+					yaffs_trace(YAFFS_TRACE_SCAN,
+						"Partially written block %d detected. gc will fix this.",
+						blk);
+				}
+			}
+		}
+
+		dev->n_free_chunks++;
+
+	} else if (tags.ecc_result ==
+		YAFFS_ECC_RESULT_UNFIXED) {
+		yaffs_trace(YAFFS_TRACE_SCAN,
+			" Unfixed ECC in chunk(%d:%d), chunk ignored",
+			blk, chunk_in_block);
+			dev->n_free_chunks++;
+	} else if (tags.obj_id > YAFFS_MAX_OBJECT_ID ||
+		   tags.chunk_id > YAFFS_MAX_CHUNK_ID ||
+		   tags.obj_id == YAFFS_OBJECTID_SUMMARY ||
+		   (tags.chunk_id > 0 &&
+		     tags.n_bytes > dev->data_bytes_per_chunk) ||
+		   tags.seq_number != bi->seq_number) {
+		yaffs_trace(YAFFS_TRACE_SCAN,
+			"Chunk (%d:%d) with bad tags:obj = %d, chunk_id = %d, n_bytes = %d, ignored",
+			blk, chunk_in_block, tags.obj_id,
+			tags.chunk_id, tags.n_bytes);
+		dev->n_free_chunks++;
+	} else if (tags.chunk_id > 0) {
+		/* chunk_id > 0 so it is a data chunk... */
+		loff_t endpos;
+		loff_t chunk_base = (tags.chunk_id - 1) *
+					dev->data_bytes_per_chunk;
+
+		*found_chunks = 1;
+
+		yaffs_set_chunk_bit(dev, blk, chunk_in_block);
+		bi->pages_in_use++;
+
+		in = yaffs_find_or_create_by_number(dev,
+					tags.obj_id,
+					YAFFS_OBJECT_TYPE_FILE);
+		if (!in)
+			/* Out of memory */
+			alloc_failed = 1;
+
+		if (in &&
+		    in->variant_type == YAFFS_OBJECT_TYPE_FILE &&
+		    chunk_base < in->variant.file_variant.shrink_size) {
+			/* This has not been invalidated by
+			 * a resize */
+			if (!yaffs_put_chunk_in_file(in, tags.chunk_id,
+								chunk, -1))
+				alloc_failed = 1;
+
+			/* File size is calculated by looking at
+			 * the data chunks if we have not
+			 * seen an object header yet.
+			 * Stop this practice once we find an
+			 * object header.
+			 */
+			endpos = chunk_base + tags.n_bytes;
+
+			if (!in->valid &&
+			    in->variant.file_variant.scanned_size < endpos) {
+				in->variant.file_variant.
+				    scanned_size = endpos;
+				in->variant.file_variant.
+				    file_size = endpos;
+			}
+		} else if (in) {
+			/* This chunk has been invalidated by a
+			 * resize, or a past file deletion
+			 * so delete the chunk*/
+			yaffs_chunk_del(dev, chunk, 1, __LINE__);
+		}
+	} else {
+		/* chunk_id == 0, so it is an ObjectHeader.
+		 * Thus, we read in the object header and make
+		 * the object
+		 */
+		*found_chunks = 1;
+
+		yaffs_set_chunk_bit(dev, blk, chunk_in_block);
+		bi->pages_in_use++;
+
+		oh = NULL;
+		in = NULL;
+
+		if (tags.extra_available) {
+			in = yaffs_find_or_create_by_number(dev,
+					tags.obj_id,
+					tags.extra_obj_type);
+			if (!in)
+				alloc_failed = 1;
+		}
+
+		if (!in ||
+		    (!in->valid && dev->param.disable_lazy_load) ||
+		    tags.extra_shadows ||
+		    (!in->valid && (tags.obj_id == YAFFS_OBJECTID_ROOT ||
+				 tags.obj_id == YAFFS_OBJECTID_LOSTNFOUND))) {
+
+			/* If we don't have  valid info then we
+			 * need to read the chunk
+			 * TODO In future we can probably defer
+			 * reading the chunk and living with
+			 * invalid data until needed.
+			 */
+
+			result = yaffs_rd_chunk_tags_nand(dev,
+						  chunk,
+						  chunk_data,
+						  NULL);
+
+			oh = (struct yaffs_obj_hdr *)chunk_data;
+
+			if (dev->param.inband_tags) {
+				/* Fix up the header if they got
+				 * corrupted by inband tags */
+				oh->shadows_obj =
+				    oh->inband_shadowed_obj_id;
+				oh->is_shrink =
+				    oh->inband_is_shrink;
+			}
+
+			if (!in) {
+				in = yaffs_find_or_create_by_number(dev,
+							tags.obj_id, oh->type);
+				if (!in)
+					alloc_failed = 1;
+			}
+		}
+
+		if (!in) {
+			/* TODO Hoosterman we have a problem! */
+			yaffs_trace(YAFFS_TRACE_ERROR,
+				"yaffs tragedy: Could not make object for object  %d at chunk %d during scan",
+				tags.obj_id, chunk);
+			return YAFFS_FAIL;
+		}
+
+		if (in->valid) {
+			/* We have already filled this one.
+			 * We have a duplicate that will be
+			 * discarded, but we first have to suck
+			 * out resize info if it is a file.
+			 */
+			if ((in->variant_type == YAFFS_OBJECT_TYPE_FILE) &&
+				((oh && oh->type == YAFFS_OBJECT_TYPE_FILE) ||
+				 (tags.extra_available &&
+				  tags.extra_obj_type == YAFFS_OBJECT_TYPE_FILE)
+				)) {
+				loff_t this_size = (oh) ?
+					yaffs_oh_to_size(oh) :
+					tags.extra_file_size;
+				u32 parent_obj_id = (oh) ?
+					oh->parent_obj_id :
+					tags.extra_parent_id;
+
+				is_shrink = (oh) ?
+					oh->is_shrink :
+					tags.extra_is_shrink;
+
+				/* If it is deleted (unlinked
+				 * at start also means deleted)
+				 * we treat the file size as
+				 * being zeroed at this point.
+				 */
+				if (parent_obj_id == YAFFS_OBJECTID_DELETED ||
+				    parent_obj_id == YAFFS_OBJECTID_UNLINKED) {
+					this_size = 0;
+					is_shrink = 1;
+				}
+
+				if (is_shrink &&
+				    in->variant.file_variant.shrink_size >
+				    this_size)
+					in->variant.file_variant.shrink_size =
+					this_size;
+
+				if (is_shrink)
+					bi->has_shrink_hdr = 1;
+			}
+			/* Use existing - destroy this one. */
+			yaffs_chunk_del(dev, chunk, 1, __LINE__);
+		}
+
+		if (!in->valid && in->variant_type !=
+		    (oh ? oh->type : tags.extra_obj_type))
+			yaffs_trace(YAFFS_TRACE_ERROR,
+				"yaffs tragedy: Bad object type, %d != %d, for object %d at chunk %d during scan",
+				oh ? oh->type : tags.extra_obj_type,
+				in->variant_type, tags.obj_id,
+				chunk);
+
+		if (!in->valid &&
+		    (tags.obj_id == YAFFS_OBJECTID_ROOT ||
+		     tags.obj_id == YAFFS_OBJECTID_LOSTNFOUND)) {
+			/* We only load some info, don't fiddle
+			 * with directory structure */
+			in->valid = 1;
+
+			if (oh) {
+				in->yst_mode = oh->yst_mode;
+				yaffs_load_attribs(in, oh);
+				in->lazy_loaded = 0;
+			} else {
+				in->lazy_loaded = 1;
+			}
+			in->hdr_chunk = chunk;
+
+		} else if (!in->valid) {
+			/* we need to load this info */
+			in->valid = 1;
+			in->hdr_chunk = chunk;
+			if (oh) {
+				in->variant_type = oh->type;
+				in->yst_mode = oh->yst_mode;
+				yaffs_load_attribs(in, oh);
+
+				if (oh->shadows_obj > 0)
+					yaffs_handle_shadowed_obj(dev,
+					     oh->shadows_obj, 1);
+
+				yaffs_set_obj_name_from_oh(in, oh);
+				parent = yaffs_find_or_create_by_number(dev,
+						oh->parent_obj_id,
+						YAFFS_OBJECT_TYPE_DIRECTORY);
+				file_size = yaffs_oh_to_size(oh);
+				is_shrink = oh->is_shrink;
+				equiv_id = oh->equiv_id;
+			} else {
+				in->variant_type = tags.extra_obj_type;
+				parent = yaffs_find_or_create_by_number(dev,
+						tags.extra_parent_id,
+						YAFFS_OBJECT_TYPE_DIRECTORY);
+				file_size = tags.extra_file_size;
+				is_shrink = tags.extra_is_shrink;
+				equiv_id = tags.extra_equiv_id;
+				in->lazy_loaded = 1;
+			}
+			in->dirty = 0;
+
+			if (!parent)
+				alloc_failed = 1;
+
+			/* directory stuff...
+			 * hook up to parent
+			 */
+
+			if (parent &&
+			    parent->variant_type == YAFFS_OBJECT_TYPE_UNKNOWN) {
+				/* Set up as a directory */
+				parent->variant_type =
+					YAFFS_OBJECT_TYPE_DIRECTORY;
+				INIT_LIST_HEAD(&parent->
+						variant.dir_variant.children);
+			} else if (!parent ||
+				   parent->variant_type !=
+					YAFFS_OBJECT_TYPE_DIRECTORY) {
+				/* Hoosterman, another problem....
+				 * Trying to use a non-directory as a directory
+				 */
+
+				yaffs_trace(YAFFS_TRACE_ERROR,
+					"yaffs tragedy: attempting to use non-directory as a directory in scan. Put in lost+found."
+					);
+				parent = dev->lost_n_found;
+			}
+			yaffs_add_obj_to_dir(parent, in);
+
+			is_unlinked = (parent == dev->del_dir) ||
+					(parent == dev->unlinked_dir);
+
+			if (is_shrink)
+				/* Mark the block */
+				bi->has_shrink_hdr = 1;
+
+			/* Note re hardlinks.
+			 * Since we might scan a hardlink before its equivalent
+			 * object is scanned we put them all in a list.
+			 * After scanning is complete, we should have all the
+			 * objects, so we run through this list and fix up all
+			 * the chains.
+			 */
+
+			switch (in->variant_type) {
+			case YAFFS_OBJECT_TYPE_UNKNOWN:
+				/* Todo got a problem */
+				break;
+			case YAFFS_OBJECT_TYPE_FILE:
+				file_var = &in->variant.file_variant;
+				if (file_var->scanned_size < file_size) {
+					/* This covers the case where the file
+					 * size is greater than the data held.
+					 * This will happen if the file is
+					 * resized to be larger than its
+					 * current data extents.
+					 */
+					file_var->file_size = file_size;
+					file_var->scanned_size = file_size;
+				}
+
+				if (file_var->shrink_size > file_size)
+					file_var->shrink_size = file_size;
+
+				break;
+			case YAFFS_OBJECT_TYPE_HARDLINK:
+				hl_var = &in->variant.hardlink_variant;
+				if (!is_unlinked) {
+					hl_var->equiv_id = equiv_id;
+					list_add(&in->hard_links, hard_list);
+				}
+				break;
+			case YAFFS_OBJECT_TYPE_DIRECTORY:
+				/* Do nothing */
+				break;
+			case YAFFS_OBJECT_TYPE_SPECIAL:
+				/* Do nothing */
+				break;
+			case YAFFS_OBJECT_TYPE_SYMLINK:
+				sl_var = &in->variant.symlink_variant;
+				if (oh) {
+					sl_var->alias =
+					    yaffs_clone_str(oh->alias);
+					if (!sl_var->alias)
+						alloc_failed = 1;
+				}
+				break;
+			}
+		}
+	}
+	return alloc_failed ? YAFFS_FAIL : YAFFS_OK;
 }
 
 int yaffs2_scan_backwards(struct yaffs_dev *dev)
 {
-	struct yaffs_ext_tags tags;
 	int blk;
 	int block_iter;
 	int start_iter;
 	int end_iter;
 	int n_to_scan = 0;
-
-	int chunk;
-	int result;
+	enum yaffs_block_state state;
 	int c;
 	int deleted;
-	enum yaffs_block_state state;
-	struct yaffs_obj *hard_list = NULL;
+	LIST_HEAD(hard_list);
 	struct yaffs_block_info *bi;
 	u32 seq_number;
-	struct yaffs_obj_hdr *oh;
-	struct yaffs_obj *in;
-	struct yaffs_obj *parent;
 	int n_blocks = dev->internal_end_block - dev->internal_start_block + 1;
-	int is_unlinked;
 	u8 *chunk_data;
-
-	int file_size;
-	int is_shrink;
 	int found_chunks;
-	int equiv_id;
 	int alloc_failed = 0;
-
 	struct yaffs_block_index *block_index = NULL;
 	int alt_block_index = 0;
+	int summary_available;
 
 	yaffs_trace(YAFFS_TRACE_SCAN,
 		"yaffs2_scan_backwards starts  intstartblk %d intendblk %d...",
@@ -993,8 +1367,8 @@ int yaffs2_scan_backwards(struct yaffs_dev *dev)
 
 	dev->seq_number = YAFFS_LOWEST_SEQUENCE_NUMBER;
 
-	block_index = kmalloc(n_blocks * sizeof(struct yaffs_block_index),
-			GFP_NOFS);
+	block_index =
+		kmalloc(n_blocks * sizeof(struct yaffs_block_index), GFP_NOFS);
 
 	if (!block_index) {
 		block_index =
@@ -1011,7 +1385,7 @@ int yaffs2_scan_backwards(struct yaffs_dev *dev)
 
 	dev->blocks_in_checkpt = 0;
 
-	chunk_data = yaffs_get_temp_buffer(dev, __LINE__);
+	chunk_data = yaffs_get_temp_buffer(dev);
 
 	/* Scan all the blocks to determine their state */
 	bi = dev->block_info;
@@ -1027,35 +1401,32 @@ int yaffs2_scan_backwards(struct yaffs_dev *dev)
 		bi->seq_number = seq_number;
 
 		if (bi->seq_number == YAFFS_SEQUENCE_CHECKPOINT_DATA)
-			bi->block_state = state = YAFFS_BLOCK_STATE_CHECKPOINT;
+			bi->block_state = YAFFS_BLOCK_STATE_CHECKPOINT;
 		if (bi->seq_number == YAFFS_SEQUENCE_BAD_BLOCK)
-			bi->block_state = state = YAFFS_BLOCK_STATE_DEAD;
+			bi->block_state = YAFFS_BLOCK_STATE_DEAD;
 
 		yaffs_trace(YAFFS_TRACE_SCAN_DEBUG,
 			"Block scanning block %d state %d seq %d",
-			blk, state, seq_number);
+			blk, bi->block_state, seq_number);
 
-		if (state == YAFFS_BLOCK_STATE_CHECKPOINT) {
+		if (bi->block_state == YAFFS_BLOCK_STATE_CHECKPOINT) {
 			dev->blocks_in_checkpt++;
 
-		} else if (state == YAFFS_BLOCK_STATE_DEAD) {
+		} else if (bi->block_state == YAFFS_BLOCK_STATE_DEAD) {
 			yaffs_trace(YAFFS_TRACE_BAD_BLOCKS,
 				"block %d is bad", blk);
-		} else if (state == YAFFS_BLOCK_STATE_EMPTY) {
+		} else if (bi->block_state == YAFFS_BLOCK_STATE_EMPTY) {
 			yaffs_trace(YAFFS_TRACE_SCAN_DEBUG, "Block empty ");
 			dev->n_erased_blocks++;
 			dev->n_free_chunks += dev->param.chunks_per_block;
-		} else if (state == YAFFS_BLOCK_STATE_NEEDS_SCANNING) {
-
+		} else if (bi->block_state ==
+				YAFFS_BLOCK_STATE_NEEDS_SCAN) {
 			/* Determine the highest sequence number */
 			if (seq_number >= YAFFS_LOWEST_SEQUENCE_NUMBER &&
 			    seq_number < YAFFS_HIGHEST_SEQUENCE_NUMBER) {
-
 				block_index[n_to_scan].seq = seq_number;
 				block_index[n_to_scan].block = blk;
-
 				n_to_scan++;
-
 				if (seq_number >= dev->seq_number)
 					dev->seq_number = seq_number;
 			} else {
@@ -1063,7 +1434,6 @@ int yaffs2_scan_backwards(struct yaffs_dev *dev)
 				yaffs_trace(YAFFS_TRACE_SCAN,
 					"Block scanning block %d has bad sequence number %d",
 					blk, seq_number);
-
 			}
 		}
 		bi++;
@@ -1087,7 +1457,8 @@ int yaffs2_scan_backwards(struct yaffs_dev *dev)
 	yaffs_trace(YAFFS_TRACE_SCAN_DEBUG, "%d blocks to scan", n_to_scan);
 
 	/* For each block.... backwards */
-	for (block_iter = end_iter; !alloc_failed && block_iter >= start_iter;
+	for (block_iter = end_iter;
+	     !alloc_failed && block_iter >= start_iter;
 	     block_iter--) {
 		/* Cooperative multitasking! This loop can run for so
 		   long that watchdog timers expire. */
@@ -1095,474 +1466,38 @@ int yaffs2_scan_backwards(struct yaffs_dev *dev)
 
 		/* get the block to scan in the correct order */
 		blk = block_index[block_iter].block;
-
 		bi = yaffs_get_block_info(dev, blk);
-
-		state = bi->block_state;
-
 		deleted = 0;
+
+		summary_available = yaffs_summary_read(dev, dev->sum_tags, blk);
 
 		/* For each chunk in each block that needs scanning.... */
 		found_chunks = 0;
-		for (c = dev->param.chunks_per_block - 1;
+		if (summary_available)
+			c = dev->chunks_per_summary - 1;
+		else
+			c = dev->param.chunks_per_block - 1;
+
+		for (/* c is already initialised */;
 		     !alloc_failed && c >= 0 &&
-		     (state == YAFFS_BLOCK_STATE_NEEDS_SCANNING ||
-		      state == YAFFS_BLOCK_STATE_ALLOCATING); c--) {
+		     (bi->block_state == YAFFS_BLOCK_STATE_NEEDS_SCAN ||
+		      bi->block_state == YAFFS_BLOCK_STATE_ALLOCATING);
+		      c--) {
 			/* Scan backwards...
 			 * Read the tags and decide what to do
 			 */
-
-			chunk = blk * dev->param.chunks_per_block + c;
-
-			result = yaffs_rd_chunk_tags_nand(dev, chunk, NULL,
-							  &tags);
-
-			/* Let's have a good look at this chunk... */
-
-			if (!tags.chunk_used) {
-				/* An unassigned chunk in the block.
-				 * If there are used chunks after this one, then
-				 * it is a chunk that was skipped due to failing the erased
-				 * check. Just skip it so that it can be deleted.
-				 * But, more typically, We get here when this is an unallocated
-				 * chunk and his means that either the block is empty or
-				 * this is the one being allocated from
-				 */
-
-				if (found_chunks) {
-					/* This is a chunk that was skipped due to failing the erased check */
-				} else if (c == 0) {
-					/* We're looking at the first chunk in the block so the block is unused */
-					state = YAFFS_BLOCK_STATE_EMPTY;
-					dev->n_erased_blocks++;
-				} else {
-					if (state ==
-					    YAFFS_BLOCK_STATE_NEEDS_SCANNING
-					    || state ==
-					    YAFFS_BLOCK_STATE_ALLOCATING) {
-						if (dev->seq_number ==
-						    bi->seq_number) {
-							/* this is the block being allocated from */
-
-							yaffs_trace(YAFFS_TRACE_SCAN,
-								" Allocating from %d %d",
-								blk, c);
-
-							state =
-							    YAFFS_BLOCK_STATE_ALLOCATING;
-							dev->alloc_block = blk;
-							dev->alloc_page = c;
-							dev->
-							    alloc_block_finder =
-							    blk;
-						} else {
-							/* This is a partially written block that is not
-							 * the current allocation block.
-							 */
-
-							yaffs_trace(YAFFS_TRACE_SCAN,
-								"Partially written block %d detected",
-								blk);
-						}
-					}
-				}
-
-				dev->n_free_chunks++;
-
-			} else if (tags.ecc_result == YAFFS_ECC_RESULT_UNFIXED) {
-				yaffs_trace(YAFFS_TRACE_SCAN,
-					" Unfixed ECC in chunk(%d:%d), chunk ignored",
-					blk, c);
-
-				dev->n_free_chunks++;
-
-			} else if (tags.obj_id > YAFFS_MAX_OBJECT_ID ||
-				   tags.chunk_id > YAFFS_MAX_CHUNK_ID ||
-				   (tags.chunk_id > 0
-				    && tags.n_bytes > dev->data_bytes_per_chunk)
-				   || tags.seq_number != bi->seq_number) {
-				yaffs_trace(YAFFS_TRACE_SCAN,
-					"Chunk (%d:%d) with bad tags:obj = %d, chunk_id = %d, n_bytes = %d, ignored",
-					blk, c, tags.obj_id,
-					tags.chunk_id, tags.n_bytes);
-
-				dev->n_free_chunks++;
-
-			} else if (tags.chunk_id > 0) {
-				/* chunk_id > 0 so it is a data chunk... */
-				unsigned int endpos;
-				u32 chunk_base =
-				    (tags.chunk_id -
-				     1) * dev->data_bytes_per_chunk;
-
-				found_chunks = 1;
-
-				yaffs_set_chunk_bit(dev, blk, c);
-				bi->pages_in_use++;
-
-				in = yaffs_find_or_create_by_number(dev,
-								    tags.obj_id,
-								    YAFFS_OBJECT_TYPE_FILE);
-				if (!in) {
-					/* Out of memory */
-					alloc_failed = 1;
-				}
-
-				if (in &&
-				    in->variant_type == YAFFS_OBJECT_TYPE_FILE
-				    && chunk_base <
-				    in->variant.file_variant.shrink_size) {
-					/* This has not been invalidated by a resize */
-					if (!yaffs_put_chunk_in_file
-					    (in, tags.chunk_id, chunk, -1)) {
-						alloc_failed = 1;
-					}
-
-					/* File size is calculated by looking at the data chunks if we have not
-					 * seen an object header yet. Stop this practice once we find an object header.
-					 */
-					endpos = chunk_base + tags.n_bytes;
-
-					if (!in->valid &&	/* have not got an object header yet */
-					    in->variant.file_variant.
-					    scanned_size < endpos) {
-						in->variant.file_variant.
-						    scanned_size = endpos;
-						in->variant.file_variant.
-						    file_size = endpos;
-					}
-
-				} else if (in) {
-					/* This chunk has been invalidated by a resize, or a past file deletion
-					 * so delete the chunk*/
-					yaffs_chunk_del(dev, chunk, 1,
-							__LINE__);
-
-				}
-			} else {
-				/* chunk_id == 0, so it is an ObjectHeader.
-				 * Thus, we read in the object header and make the object
-				 */
-				found_chunks = 1;
-
-				yaffs_set_chunk_bit(dev, blk, c);
-				bi->pages_in_use++;
-
-				oh = NULL;
-				in = NULL;
-
-				if (tags.extra_available) {
-					in = yaffs_find_or_create_by_number(dev,
-									    tags.
-									    obj_id,
-									    tags.
-									    extra_obj_type);
-					if (!in)
-						alloc_failed = 1;
-				}
-
-				if (!in ||
-				    (!in->valid && dev->param.disable_lazy_load)
-				    || tags.extra_shadows || (!in->valid
-							      && (tags.obj_id ==
-								  YAFFS_OBJECTID_ROOT
-								  || tags.
-								  obj_id ==
-								  YAFFS_OBJECTID_LOSTNFOUND)))
-				{
-
-					/* If we don't have  valid info then we need to read the chunk
-					 * TODO In future we can probably defer reading the chunk and
-					 * living with invalid data until needed.
-					 */
-
-					result = yaffs_rd_chunk_tags_nand(dev,
-									  chunk,
-									  chunk_data,
-									  NULL);
-
-					oh = (struct yaffs_obj_hdr *)chunk_data;
-
-					if (dev->param.inband_tags) {
-						/* Fix up the header if they got corrupted by inband tags */
-						oh->shadows_obj =
-						    oh->inband_shadowed_obj_id;
-						oh->is_shrink =
-						    oh->inband_is_shrink;
-					}
-
-					if (!in) {
-						in = yaffs_find_or_create_by_number(dev, tags.obj_id, oh->type);
-						if (!in)
-							alloc_failed = 1;
-					}
-
-				}
-
-				if (!in) {
-					/* TODO Hoosterman we have a problem! */
-					yaffs_trace(YAFFS_TRACE_ERROR,
-						"yaffs tragedy: Could not make object for object  %d at chunk %d during scan",
-						tags.obj_id, chunk);
-					continue;
-				}
-
-				if (in->valid) {
-					/* We have already filled this one.
-					 * We have a duplicate that will be discarded, but
-					 * we first have to suck out resize info if it is a file.
-					 */
-
-					if ((in->variant_type ==
-					     YAFFS_OBJECT_TYPE_FILE) && ((oh
-									  &&
-									  oh->
-									  type
-									  ==
-									  YAFFS_OBJECT_TYPE_FILE)
-									 ||
-									 (tags.
-									  extra_available
-									  &&
-									  tags.
-									  extra_obj_type
-									  ==
-									  YAFFS_OBJECT_TYPE_FILE)))
-					{
-						u32 this_size =
-						    (oh) ? oh->
-						    file_size :
-						    tags.extra_length;
-						u32 parent_obj_id =
-						    (oh) ? oh->parent_obj_id :
-						    tags.extra_parent_id;
-
-						is_shrink =
-						    (oh) ? oh->
-						    is_shrink :
-						    tags.extra_is_shrink;
-
-						/* If it is deleted (unlinked at start also means deleted)
-						 * we treat the file size as being zeroed at this point.
-						 */
-						if (parent_obj_id ==
-						    YAFFS_OBJECTID_DELETED
-						    || parent_obj_id ==
-						    YAFFS_OBJECTID_UNLINKED) {
-							this_size = 0;
-							is_shrink = 1;
-						}
-
-						if (is_shrink
-						    && in->variant.file_variant.
-						    shrink_size > this_size)
-							in->variant.
-							    file_variant.
-							    shrink_size =
-							    this_size;
-
-						if (is_shrink)
-							bi->has_shrink_hdr = 1;
-
-					}
-					/* Use existing - destroy this one. */
-					yaffs_chunk_del(dev, chunk, 1,
-							__LINE__);
-
-				}
-
-				if (!in->valid && in->variant_type !=
-				    (oh ? oh->type : tags.extra_obj_type))
-					yaffs_trace(YAFFS_TRACE_ERROR,
-						"yaffs tragedy: Bad object type, %d != %d, for object %d at chunk %d during scan",
-						oh ?
-						oh->type : tags.extra_obj_type,
-						in->variant_type, tags.obj_id,
-						chunk);
-
-				if (!in->valid &&
-				    (tags.obj_id == YAFFS_OBJECTID_ROOT ||
-				     tags.obj_id ==
-				     YAFFS_OBJECTID_LOSTNFOUND)) {
-					/* We only load some info, don't fiddle with directory structure */
-					in->valid = 1;
-
-					if (oh) {
-
-						in->yst_mode = oh->yst_mode;
-						yaffs_load_attribs(in, oh);
-						in->lazy_loaded = 0;
-					} else {
-						in->lazy_loaded = 1;
-                                        }
-					in->hdr_chunk = chunk;
-
-				} else if (!in->valid) {
-					/* we need to load this info */
-
-					in->valid = 1;
-					in->hdr_chunk = chunk;
-
-					if (oh) {
-						in->variant_type = oh->type;
-
-						in->yst_mode = oh->yst_mode;
-						yaffs_load_attribs(in, oh);
-
-						if (oh->shadows_obj > 0)
-							yaffs_handle_shadowed_obj
-							    (dev,
-							     oh->shadows_obj,
-							     1);
-
-						yaffs_set_obj_name_from_oh(in,
-									   oh);
-						parent =
-						    yaffs_find_or_create_by_number
-						    (dev, oh->parent_obj_id,
-						     YAFFS_OBJECT_TYPE_DIRECTORY);
-
-						file_size = oh->file_size;
-						is_shrink = oh->is_shrink;
-						equiv_id = oh->equiv_id;
-
-					} else {
-						in->variant_type =
-						    tags.extra_obj_type;
-						parent =
-						    yaffs_find_or_create_by_number
-						    (dev, tags.extra_parent_id,
-						     YAFFS_OBJECT_TYPE_DIRECTORY);
-						file_size = tags.extra_length;
-						is_shrink =
-						    tags.extra_is_shrink;
-						equiv_id = tags.extra_equiv_id;
-						in->lazy_loaded = 1;
-
-					}
-					in->dirty = 0;
-
-					if (!parent)
-						alloc_failed = 1;
-
-					/* directory stuff...
-					 * hook up to parent
-					 */
-
-					if (parent && parent->variant_type ==
-					    YAFFS_OBJECT_TYPE_UNKNOWN) {
-						/* Set up as a directory */
-						parent->variant_type =
-						    YAFFS_OBJECT_TYPE_DIRECTORY;
-						INIT_LIST_HEAD(&parent->
-							       variant.dir_variant.children);
-					} else if (!parent
-						   || parent->variant_type !=
-						   YAFFS_OBJECT_TYPE_DIRECTORY) {
-						/* Hoosterman, another problem....
-						 * We're trying to use a non-directory as a directory
-						 */
-
-						yaffs_trace(YAFFS_TRACE_ERROR,
-							"yaffs tragedy: attempting to use non-directory as a directory in scan. Put in lost+found."
-							);
-						parent = dev->lost_n_found;
-					}
-
-					yaffs_add_obj_to_dir(parent, in);
-
-					is_unlinked = (parent == dev->del_dir)
-					    || (parent == dev->unlinked_dir);
-
-					if (is_shrink) {
-						/* Mark the block as having a shrink header */
-						bi->has_shrink_hdr = 1;
-					}
-
-					/* Note re hardlinks.
-					 * Since we might scan a hardlink before its equivalent object is scanned
-					 * we put them all in a list.
-					 * After scanning is complete, we should have all the objects, so we run
-					 * through this list and fix up all the chains.
-					 */
-
-					switch (in->variant_type) {
-					case YAFFS_OBJECT_TYPE_UNKNOWN:
-						/* Todo got a problem */
-						break;
-					case YAFFS_OBJECT_TYPE_FILE:
-
-						if (in->variant.
-						    file_variant.scanned_size <
-						    file_size) {
-							/* This covers the case where the file size is greater
-							 * than where the data is
-							 * This will happen if the file is resized to be larger
-							 * than its current data extents.
-							 */
-							in->variant.
-							    file_variant.
-							    file_size =
-							    file_size;
-							in->variant.
-							    file_variant.
-							    scanned_size =
-							    file_size;
-						}
-
-						if (in->variant.file_variant.
-						    shrink_size > file_size)
-							in->variant.
-							    file_variant.
-							    shrink_size =
-							    file_size;
-
-						break;
-					case YAFFS_OBJECT_TYPE_HARDLINK:
-						if (!is_unlinked) {
-							in->variant.
-							    hardlink_variant.
-							    equiv_id = equiv_id;
-							in->hard_links.next =
-							    (struct list_head *)
-							    hard_list;
-							hard_list = in;
-						}
-						break;
-					case YAFFS_OBJECT_TYPE_DIRECTORY:
-						/* Do nothing */
-						break;
-					case YAFFS_OBJECT_TYPE_SPECIAL:
-						/* Do nothing */
-						break;
-					case YAFFS_OBJECT_TYPE_SYMLINK:
-						if (oh) {
-							in->variant.
-							    symlink_variant.
-							    alias =
-							    yaffs_clone_str(oh->
-									    alias);
-							if (!in->variant.
-							    symlink_variant.
-							    alias)
-								alloc_failed =
-								    1;
-						}
-						break;
-					}
-
-				}
-
-			}
-
-		}		/* End of scanning for each chunk */
-
-		if (state == YAFFS_BLOCK_STATE_NEEDS_SCANNING) {
-			/* If we got this far while scanning, then the block is fully allocated. */
-			state = YAFFS_BLOCK_STATE_FULL;
+			if (yaffs2_scan_chunk(dev, bi, blk, c,
+					&found_chunks, chunk_data,
+					&hard_list, summary_available) ==
+					YAFFS_FAIL)
+				alloc_failed = 1;
 		}
 
-		bi->block_state = state;
+		if (bi->block_state == YAFFS_BLOCK_STATE_NEEDS_SCAN) {
+			/* If we got this far while scanning, then the block
+			 * is fully allocated. */
+			bi->block_state = YAFFS_BLOCK_STATE_FULL;
+		}
 
 		/* Now let's see if it was dirty */
 		if (bi->pages_in_use == 0 &&
@@ -1570,7 +1505,6 @@ int yaffs2_scan_backwards(struct yaffs_dev *dev)
 		    bi->block_state == YAFFS_BLOCK_STATE_FULL) {
 			yaffs_block_became_dirty(dev, blk);
 		}
-
 	}
 
 	yaffs_skip_rest_of_block(dev);
@@ -1582,12 +1516,12 @@ int yaffs2_scan_backwards(struct yaffs_dev *dev)
 
 	/* Ok, we've done all the scanning.
 	 * Fix up the hard link chains.
-	 * We should now have scanned all the objects, now it's time to add these
+	 * We have scanned all the objects, now it's time to add these
 	 * hardlinks.
 	 */
-	yaffs_link_fixup(dev, hard_list);
+	yaffs_link_fixup(dev, &hard_list);
 
-	yaffs_release_temp_buffer(dev, chunk_data, __LINE__);
+	yaffs_release_temp_buffer(dev, chunk_data);
 
 	if (alloc_failed)
 		return YAFFS_FAIL;

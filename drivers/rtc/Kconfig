@@ -900,6 +900,12 @@ config RTC_DRV_BFIN
 	  This driver can also be built as a module. If so, the module
 	  will be called rtc-bfin.
 
+config RTC_DRV_GOLDFISH
+	tristate "GOLDFISH"
+	depends on ARCH_GOLDFISH
+	help
+	  RTC driver for Goldfish Virtual Platform
+
 config RTC_DRV_RS5C313
 	tristate "Ricoh RS5C313"
 	depends on SH_LANDISK

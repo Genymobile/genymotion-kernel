@@ -334,4 +334,9 @@ config MTD_DOCPROBE_55AA
 	  LinuxBIOS or if you need to recover a DiskOnChip Millennium on which
 	  you have managed to wipe the first block.
 
+config MTD_GOLDFISH_NAND
+	tristate "Goldfish NAND device"
+	help
+	  none
+
 endmenu

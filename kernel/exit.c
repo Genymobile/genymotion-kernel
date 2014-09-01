@@ -59,6 +59,11 @@
 #include <asm/pgtable.h>
 #include <asm/mmu_context.h>
 
+#ifdef CONFIG_QEMU_TRACE
+void qemu_trace_thread_name(char *name);
+void qemu_trace_exit(int code);
+#endif
+
 static void exit_mm(struct task_struct * tsk);
 
 static void __unhash_process(struct task_struct *p, bool group_dead)
@@ -417,6 +422,9 @@ void daemonize(const char *name, ...)
 	va_start(args, name);
 	vsnprintf(current->comm, sizeof(current->comm), name, args);
 	va_end(args);
+#ifdef CONFIG_QEMU_TRACE
+	qemu_trace_thread_name(current->comm);
+#endif
 
 	/*
 	 * If we were started as result of loading a module, close all of the
@@ -471,7 +479,7 @@ static void close_files(struct files_struct * files)
 	rcu_read_unlock();
 	for (;;) {
 		unsigned long set;
-		i = j * __NFDBITS;
+		i = j * BITS_PER_LONG;
 		if (i >= fdt->max_fds)
 			break;
 		set = fdt->open_fds[j++];
@@ -643,6 +651,7 @@ static void exit_mm(struct task_struct * tsk)
 	mm_release(tsk, mm);
 	if (!mm)
 		return;
+	sync_mm_rss(mm);
 	/*
 	 * Serialize with any possible pending coredump.
 	 * We must hold mmap_sem around checking core_state
@@ -1026,7 +1035,7 @@ void do_exit(long code)
 	/*
 	 * Make sure we are holding no locks:
 	 */
-	debug_check_no_locks_held(tsk);
+	debug_check_no_locks_held();
 	/*
 	 * We can do this unlocked here. The futex code uses this flag
 	 * just to verify whether the pi state cleanup has been done
@@ -1065,6 +1074,12 @@ void do_exit(long code)
 	/* causes final put_task_struct in finish_task_switch(). */
 	tsk->state = TASK_DEAD;
 	tsk->flags |= PF_NOFREEZE;	/* tell freezer to ignore us */
+
+#ifdef CONFIG_QEMU_TRACE
+	/* Emit a trace record for the exit() call. */
+	qemu_trace_exit(code);
+#endif
+
 	schedule();
 	BUG();
 	/* Avoid "noreturn function does return".  */

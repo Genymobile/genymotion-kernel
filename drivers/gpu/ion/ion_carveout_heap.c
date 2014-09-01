@@ -84,23 +84,46 @@ static void ion_carveout_heap_free(struct ion_buffer *buffer)
 	buffer->priv_phys = ION_CARVEOUT_ALLOCATE_FAIL;
 }
 
-struct scatterlist *ion_carveout_heap_map_dma(struct ion_heap *heap,
+struct sg_table *ion_carveout_heap_map_dma(struct ion_heap *heap,
 					      struct ion_buffer *buffer)
 {
-	return ERR_PTR(-EINVAL);
+	struct sg_table *table;
+	int ret;
+
+	table = kzalloc(sizeof(struct sg_table), GFP_KERNEL);
+	if (!table)
+		return ERR_PTR(-ENOMEM);
+	ret = sg_alloc_table(table, 1, GFP_KERNEL);
+	if (ret) {
+		kfree(table);
+		return ERR_PTR(ret);
+	}
+	sg_set_page(table->sgl, phys_to_page(buffer->priv_phys), buffer->size,
+		    0);
+	return table;
 }
 
 void ion_carveout_heap_unmap_dma(struct ion_heap *heap,
 				 struct ion_buffer *buffer)
 {
-	return;
+	sg_free_table(buffer->sg_table);
 }
 
 void *ion_carveout_heap_map_kernel(struct ion_heap *heap,
 				   struct ion_buffer *buffer)
 {
-	return __arm_ioremap(buffer->priv_phys, buffer->size,
-			      MT_MEMORY_NONCACHED);
+	void *ret;
+	int mtype = MT_MEMORY_NONCACHED;
+
+	if (buffer->flags & ION_FLAG_CACHED)
+		mtype = MT_MEMORY;
+
+	ret = __arm_ioremap(buffer->priv_phys, buffer->size,
+			      mtype);
+	if (ret == NULL)
+		return ERR_PTR(-ENOMEM);
+
+	return ret;
 }
 
 void ion_carveout_heap_unmap_kernel(struct ion_heap *heap,
@@ -116,7 +139,7 @@ int ion_carveout_heap_map_user(struct ion_heap *heap, struct ion_buffer *buffer,
 {
 	return remap_pfn_range(vma, vma->vm_start,
 			       __phys_to_pfn(buffer->priv_phys) + vma->vm_pgoff,
-			       buffer->size,
+			       vma->vm_end - vma->vm_start,
 			       pgprot_noncached(vma->vm_page_prot));
 }
 
@@ -124,6 +147,8 @@ static struct ion_heap_ops carveout_heap_ops = {
 	.allocate = ion_carveout_heap_allocate,
 	.free = ion_carveout_heap_free,
 	.phys = ion_carveout_heap_phys,
+	.map_dma = ion_carveout_heap_map_dma,
+	.unmap_dma = ion_carveout_heap_unmap_dma,
 	.map_user = ion_carveout_heap_map_user,
 	.map_kernel = ion_carveout_heap_map_kernel,
 	.unmap_kernel = ion_carveout_heap_unmap_kernel,

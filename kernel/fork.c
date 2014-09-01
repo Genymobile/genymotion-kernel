@@ -372,7 +372,8 @@ static int dup_mmap(struct mm_struct *mm, struct mm_struct *oldmm)
 		}
 		charge = 0;
 		if (mpnt->vm_flags & VM_ACCOUNT) {
-			unsigned int len = (mpnt->vm_end - mpnt->vm_start) >> PAGE_SHIFT;
+			unsigned long len;
+			len = (mpnt->vm_end - mpnt->vm_start) >> PAGE_SHIFT;
 			if (security_vm_enough_memory_mm(oldmm, len)) /* sic */
 				goto fail_nomem;
 			charge = len;
@@ -1552,6 +1553,10 @@ struct task_struct * __cpuinit fork_idle(int cpu)
 	return task;
 }
 
+#ifdef CONFIG_QEMU_TRACE
+extern void qemu_trace_fork(struct task_struct *forked, unsigned long clone_flags);
+#endif
+
 /*
  *  Ok, this is the main fork-routine.
  *
@@ -1629,6 +1634,10 @@ long do_fork(unsigned long clone_flags,
 		/* forking complete and child started to run, tell ptracer */
 		if (unlikely(trace))
 			ptrace_event(trace, nr);
+
+#ifdef CONFIG_QEMU_TRACE
+                qemu_trace_fork(p, clone_flags);
+#endif
 
 		if (clone_flags & CLONE_VFORK) {
 			if (!wait_for_vfork_done(p, &vfork))
