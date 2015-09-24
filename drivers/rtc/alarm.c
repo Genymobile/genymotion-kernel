@@ -13,7 +13,6 @@
  *
  */
 
-#include <asm/mach/time.h>
 #include <linux/android_alarm.h>
 #include <linux/device.h>
 #include <linux/miscdevice.h>
@@ -64,6 +63,24 @@ static struct platform_device *alarm_platform_dev;
 static struct hrtimer alarm_timer[ANDROID_ALARM_TYPE_COUNT];
 static struct timespec alarm_time[ANDROID_ALARM_TYPE_COUNT];
 static struct timespec elapsed_rtc_delta;
+
+/**
+ * This function was not defined for x86 architecture and has been copied
+ * from arch/arm/kernel/time.c
+ *
+ * save_time_delta - Save the offset between system time and RTC time
+ * @delta: pointer to timespec to store delta
+ * @rtc: pointer to timespec for current RTC time
+ *
+ * Return a delta between the system time and the RTC time, such
+ * that system time can be restored later with restore_time_delta()
+ */
+static void save_time_delta(struct timespec *delta, struct timespec *rtc)
+{
+        set_normalized_timespec(delta,
+                                xtime.tv_sec - rtc->tv_sec,
+                                xtime.tv_nsec - rtc->tv_nsec);
+}
 
 static void alarm_start_hrtimer(enum android_alarm_type alarm_type)
 {
