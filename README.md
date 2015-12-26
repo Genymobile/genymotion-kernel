@@ -135,19 +135,16 @@ kernel, and what to do if something goes wrong.
    Using the option "make O=output/dir" allow you to specify an alternate
    place for the output files (including .config).
    Example:
-    ```
+  
     kernel source code: /usr/src/linux-3.X
     build directory:    /home/name/build/kernel
-    ```
 
    To configure and build the kernel, use:
 
-    ```
      cd /usr/src/linux-3.X
      make O=/home/name/build/kernel menuconfig
      make O=/home/name/build/kernel
      sudo make O=/home/name/build/kernel modules_install install
-    ```
 
    ** Please note: **
    **If the 'O=output/dir' option is used, then it must be used for all invocations of make.**
