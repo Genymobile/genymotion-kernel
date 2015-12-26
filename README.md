@@ -34,7 +34,7 @@ kernel, and what to do if something goes wrong.
   Linux has also been ported to itself. You can now run the kernel as a
   userspace application - this is called UserMode Linux (UML).
 
-## DOCUMENTATION:
+## DOCUMENTATION
 
  - There is a lot of documentation available both in electronic form on
    the Internet and in books, both Linux-specific and pertaining to
@@ -56,7 +56,7 @@ kernel, and what to do if something goes wrong.
    After installation, "make psdocs", "make pdfdocs", "make htmldocs",
    or "make mandocs" will render the documentation in the requested format.
 
-## INSTALLING the kernel source:
+## INSTALLING the kernel source
 
  - If you install the full sources, put the kernel tarball in a
    directory where you have permissions (eg. your home directory) and
@@ -68,12 +68,12 @@ kernel, and what to do if something goes wrong.
 
      `bzip2 -dc linux-3.X.tar.bz2 | tar xvf -`
 
-   Replace "X" with the version number of the latest kernel.
+   *Replace "X" with the version number of the latest kernel.*
 
-   Do NOT use the /usr/src/linux area! This area has a (usually
-   incomplete) set of kernel headers that are used by the library header
-   files.  They should match the library, and not get messed up by
-   whatever the kernel-du-jour happens to be.
+   ** Do NOT use the /usr/src/linux area! This area has a (usually **
+   ** incomplete) set of kernel headers that are used by the library header **
+   ** files.  They should match the library, and not get messed up by **
+   ** whatever the kernel-du-jour happens to be.**
 
  - You can also upgrade between 3.x releases by patching.  Patches are
    distributed in the traditional gzip and the newer bzip2 format.  To
@@ -86,11 +86,13 @@ kernel, and what to do if something goes wrong.
 
      `bzip2 -dc ../patch-3.x.bz2 | patch -p1`
 
+   ```
    Replace "x" for all versions bigger than the version "X" of your current
    source tree, _in_order_, and you should be ok.  You may want to remove
    the backup files (some-file-name~ or some-file-name.orig), and make sure
    that there are no failed patches (some-file-name# or some-file-name.rej).
    If there are, either you or I have made a mistake.
+   ```
 
    Unlike patches for the 3.x kernels, patches for the 3.x.y kernels
    (also known as the -stable kernels) are not incremental but instead apply
@@ -105,7 +107,7 @@ kernel, and what to do if something goes wrong.
    process.  It determines the current kernel version and applies any
    patches found.
 
-     linux/scripts/patch-kernel linux
+     `linux/scripts/patch-kernel linux`
 
    The first argument in the command above is the location of the
    kernel source.  Patches are applied from the current directory, but
@@ -113,8 +115,7 @@ kernel, and what to do if something goes wrong.
 
  - Make sure you have no stale .o files and dependencies lying around:
 
-     cd linux
-     make mrproper
+   `cd linuxmake mrproper`
 
    You should now have the sources correctly installed.
 
@@ -142,13 +143,15 @@ kernel, and what to do if something goes wrong.
 
    To configure and build the kernel, use:
 
+    ```
      cd /usr/src/linux-3.X
      make O=/home/name/build/kernel menuconfig
      make O=/home/name/build/kernel
      sudo make O=/home/name/build/kernel modules_install install
+    ```
 
-   Please note: If the 'O=output/dir' option is used, then it must be
-   used for all invocations of make.
+   ** Please note: **
+   **If the 'O=output/dir' option is used, then it must be used for all invocations of make.**
 
 ## CONFIGURING the kernel:
 
@@ -161,72 +164,76 @@ kernel, and what to do if something goes wrong.
 
  - Alternative configuration commands are:
 
-     "make config"      Plain text interface.
+    **"make config"**         Plain text interface.
 
-     "make menuconfig"  Text based color menus, radiolists & dialogs.
+    **"make menuconfig"**     Text based color menus, radiolists & dialogs.
 
-     "make nconfig"     Enhanced text based color menus.
+    **"make nconfig"**        Enhanced text based color menus.
 
-     "make xconfig"     X windows (Qt) based configuration tool.
+    **"make xconfig"**        X windows (Qt) based configuration tool.
 
-     "make gconfig"     X windows (Gtk) based configuration tool.
+    **"make gconfig"**        X windows (Gtk) based configuration tool.
 
-     "make oldconfig"   Default all questions based on the contents of
-                        your existing ./.config file and asking about
-                        new config symbols.
+    **"make oldconfig"**      Default all questions based on the contents of
+                              your existing ./.config file and asking about
+                              new config symbols.
 
-     "make silentoldconfig"
-                        Like above, but avoids cluttering the screen
-                        with questions already answered.
-                        Additionally updates the dependencies.
+    **"make silentoldconfig"**
+                              Like above, but avoids cluttering the screen
+                              with questions already answered.
+                              Additionally updates the dependencies.
 
-     "make olddefconfig"
-                        Like above, but sets new symbols to their default
-                        values without prompting.
+    **"make olddefconfig"**
+                              Like above, but sets new symbols to their default
+                              values without prompting.
 
-     "make defconfig"   Create a ./.config file by using the default
-                        symbol values from either arch/$ARCH/defconfig
-                        or arch/$ARCH/configs/${PLATFORM}_defconfig,
-                        depending on the architecture.
+    **"make defconfig"**      Create a ./.config file by using the default
+                              symbol values from either arch/$ARCH/defconfig
+                              or arch/$ARCH/configs/${PLATFORM}_defconfig,
+                              depending on the architecture.
 
-     "make ${PLATFORM}_defconfig"
-                        Create a ./.config file by using the default
-                        symbol values from
-                        arch/$ARCH/configs/${PLATFORM}_defconfig.
-                        Use "make help" to get a list of all available
-                        platforms of your architecture.
+    **"make ${PLATFORM}_defconfig"**
+                              Create a ./.config file by using the default
+                              symbol values from
+                              arch/$ARCH/configs/${PLATFORM}_defconfig.
+                              Use "make help" to get a list of all available
+                              platforms of your architecture.
 
-     "make allyesconfig"
-                        Create a ./.config file by setting symbol
-                        values to 'y' as much as possible.
+    **"make allyesconfig"**
+                              Create a ./.config file by setting symbol
+                              values to 'y' as much as possible.
 
-     "make allmodconfig"
-                        Create a ./.config file by setting symbol
-                        values to 'm' as much as possible.
+    **"make allmodconfig"**
+                              Create a ./.config file by setting symbol
+                              values to 'm' as much as possible.
 
-     "make allnoconfig" Create a ./.config file by setting symbol
-                        values to 'n' as much as possible.
+    **"make allnoconfig"**    Create a ./.config file by setting symbol
+                              values to 'n' as much as possible.
 
-     "make randconfig"  Create a ./.config file by setting symbol
-                        values to random values.
+    **"make randconfig"**     Create a ./.config file by setting symbol
+                              values to random values.
 
-     "make localmodconfig" Create a config based on current config and
-                           loaded modules (lsmod). Disables any module
-                           option that is not needed for the loaded modules.
+    **"make localmodconfig"** Create a config based on current config and
+                              loaded modules (lsmod). Disables any module
+                              option that is not needed for the loaded modules.
 
-                           To create a localmodconfig for another machine,
-                           store the lsmod of that machine into a file
-                           and pass it in as a LSMOD parameter.
+                              To create a localmodconfig for another machine,
+                              store the lsmod of that machine into a file
+                              and pass it in as a LSMOD parameter.
 
-                   target$ lsmod > /tmp/mylsmod
-                   target$ scp /tmp/mylsmod host:/tmp
+                              ```
+                              
+                              target$ lsmod > /tmp/mylsmod
+                              target$ scp /tmp/mylsmod host:/tmp
 
-                   host$ make LSMOD=/tmp/mylsmod localmodconfig
+                              host$ make LSMOD=/tmp/mylsmod localmodconfig
+                              
+                              ```
 
-                           The above also works when cross compiling.
+                              The above also works when cross compiling.
 
-     "make localyesconfig" Similar to localmodconfig, except it will convert
-                           all module options to built in (=y) options.
+    **"make localyesconfig"** Similar to localmodconfig, except it will convert
+                              all module options to built in (=y) options.
 
    You can find more information on using the Linux kernel config tools
    in Documentation/kbuild/kconfig.txt.
@@ -335,13 +342,14 @@ kernel, and what to do if something goes wrong.
    them to me (torvalds@linux-foundation.org), and possibly to any other
    relevant mailing-list or to the newsgroup.
 
- - In all bug-reports, *please* tell what kernel you are talking about,
+ - In all bug-reports, **please** tell what kernel you are talking about,
    how to duplicate the problem, and what your setup is (use your common
    sense).  If the problem is new, tell me so, and if the problem is
    old, please try to tell me when you first noticed it.
 
  - If the bug results in a message like
 
+    ```
      unable to handle kernel paging request at address C0000010
      Oops: 0002
      EIP:   0010:XXXXXXXX
@@ -350,9 +358,10 @@ kernel, and what to do if something goes wrong.
      ds: xxxx  es: xxxx  fs: xxxx  gs: xxxx
      Pid: xx, process nr: xx
      xx xx xx xx xx xx xx xx xx xx
+    ```
 
    or similar kernel debugging information on your screen or in your
-   system log, please duplicate it *exactly*.  The dump may look
+   system log, please duplicate it **exactly**.  The dump may look
    incomprehensible to you, but it does contain information that may
    help debugging the problem.  The text above the dump is also
    important: it tells something about why the kernel dumped code (in
@@ -378,7 +387,7 @@ kernel, and what to do if something goes wrong.
    the file 'linux/vmlinux'.  To extract the namelist and match it against
    the EIP from the kernel crash, do:
 
-     nm vmlinux | sort | less
+    `nm vmlinux | sort | less`
 
    This will give you a list of kernel addresses sorted in ascending
    order, from which it is simple to find the function that contains the
@@ -402,10 +411,14 @@ kernel, and what to do if something goes wrong.
    kernel with -g; edit arch/i386/Makefile appropriately, then do a "make
    clean". You'll also need to enable CONFIG_PROC_FS (via "make config").
 
-   After you've rebooted with the new kernel, do "gdb vmlinux /proc/kcore".
+   After you've rebooted with the new kernel, do
+   
+   `"gdb vmlinux /proc/kcore"`.
+   
+   
    You can now use all the usual gdb commands. The command to look up the
-   point where your system crashed is "l *0xXXXXXXXX". (Replace the XXXes
-   with the EIP value.)
+   point where your system crashed is "l *0xXXXXXXXX". 
+   *(Replace the XXXes with the EIP value.)*
 
    gdb'ing a non-running kernel currently fails because gdb (wrongly)
    disregards the starting offset for which the kernel is compiled.
