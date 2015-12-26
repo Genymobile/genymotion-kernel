@@ -85,14 +85,12 @@ kernel, and what to do if something goes wrong.
    or
 
      `bzip2 -dc ../patch-3.x.bz2 | patch -p1`
-
-   ```
+     
    Replace "x" for all versions bigger than the version "X" of your current
    source tree, _in_order_, and you should be ok.  You may want to remove
    the backup files (some-file-name~ or some-file-name.orig), and make sure
    that there are no failed patches (some-file-name# or some-file-name.rej).
    If there are, either you or I have made a mistake.
-   ```
 
    Unlike patches for the 3.x kernels, patches for the 3.x.y kernels
    (also known as the -stable kernels) are not incremental but instead apply
@@ -100,7 +98,7 @@ kernel, and what to do if something goes wrong.
    and you want to apply the 3.0.3 patch, you must not first apply the 3.0.1
    and 3.0.2 patches. Similarly, if you are running kernel version 3.0.2 and
    want to jump to 3.0.3, you must first reverse the 3.0.2 patch (that is,
-   patch -R) _before_ applying the 3.0.3 patch. You can read more on this in
+   patch -R) **before** applying the 3.0.3 patch. You can read more on this in
    Documentation/applying-patches.txt
 
    Alternatively, the script patch-kernel can be used to automate this
