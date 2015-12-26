@@ -137,9 +137,10 @@ kernel, and what to do if something goes wrong.
    Using the option "make O=output/dir" allow you to specify an alternate
    place for the output files (including .config).
    Example:
-    
-    `kernel source code: /usr/src/linux-3.X`
-    `build directory:    /home/name/build/kernel`
+    ```
+    kernel source code: /usr/src/linux-3.X
+    build directory:    /home/name/build/kernel
+    ```
 
    To configure and build the kernel, use:
 
@@ -219,9 +220,9 @@ kernel, and what to do if something goes wrong.
                               store the lsmod of that machine into a file
                               and pass it in as a LSMOD parameter.
                               
-                              `target$ lsmod > /tmp/mylsmod`
-                              `target$ scp /tmp/mylsmod host:/tmp`
-                              `host$ make LSMOD=/tmp/mylsmod localmodconfig`
+                              target$ lsmod > /tmp/mylsmod
+                              target$ scp /tmp/mylsmod host:/tmp
+                              host$ make LSMOD=/tmp/mylsmod localmodconfig
                               
                               The above also works when cross compiling.
                               
