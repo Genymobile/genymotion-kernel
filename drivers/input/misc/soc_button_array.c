@@ -77,7 +77,7 @@ soc_button_device_create(struct platform_device *pdev,
 	struct gpio_keys_platform_data *gpio_keys_pdata;
 	int n_buttons = 0;
 	int gpio;
-	int error;
+	int i, error;
 
 	gpio_keys_pdata = devm_kzalloc(&pdev->dev,
 				       sizeof(*gpio_keys_pdata) +
@@ -95,6 +95,13 @@ soc_button_device_create(struct platform_device *pdev,
 		gpio = soc_button_lookup_gpio(&pdev->dev, info->acpi_index);
 		if (!gpio_is_valid(gpio))
 			continue;
+
+		for (i = 0; i < n_buttons; i++) {
+			if (gpio_keys[i].gpio == gpio)
+				break;
+		}
+		if (i < n_buttons)
+			continue; /* the GPIO has already been assigned */
 
 		gpio_keys[n_buttons].type = info->event_type;
 		gpio_keys[n_buttons].code = info->event_code;
