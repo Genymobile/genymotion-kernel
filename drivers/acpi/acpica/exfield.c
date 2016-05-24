@@ -405,6 +405,17 @@ acpi_ex_write_data_to_field(union acpi_operand_object *source_desc,
 			 *     Data[x-1];   (Bytes 2-x of the arbitrary length data buffer)
 			 */
 			length += 2;
+
+			/*
+			 * bug? in the MS Surface 3: length is 2 but the command
+			 * needs 3 parameters.
+			 * Functions like BIX requires a lot of in/out data,
+			 * so just take the incoming buffer length as the
+			 * reference.
+			 */
+			if (accessor_type == 0xf)
+				length = source_desc->buffer.length;
+
 			function = ACPI_WRITE | (accessor_type << 16);
 		} else {	/* IPMI */
 
