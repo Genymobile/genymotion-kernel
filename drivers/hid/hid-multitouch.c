@@ -522,6 +522,9 @@ static int mt_touch_input_mapping(struct hid_device *hdev, struct hid_input *hi,
 				field->application == HID_DG_TOUCHPAD) {
 				cls->quirks &= ~MT_QUIRK_ALWAYS_VALID;
 				cls->quirks |= MT_QUIRK_VALID_IS_CONFIDENCE;
+
+				/* do not overwrite later the quirks */
+				td->serial_maybe = false;
 			}
 			mt_store_field(usage, td, hi);
 			return 1;
