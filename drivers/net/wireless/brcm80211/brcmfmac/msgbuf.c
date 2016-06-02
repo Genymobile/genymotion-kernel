@@ -20,6 +20,7 @@
 
 #include <linux/types.h>
 #include <linux/netdevice.h>
+#include <linux/etherdevice.h>
 
 #include <brcmu_utils.h>
 #include <brcmu_wifi.h>
@@ -1088,6 +1089,8 @@ brcmf_msgbuf_rx_skb(struct brcmf_msgbuf *msgbuf, struct sk_buff *skb,
 		brcmu_pkt_buf_free_skb(skb);
 		return;
 	}
+
+	skb->protocol = eth_type_trans(skb, ifp->ndev);
 	brcmf_netif_rx(ifp, skb);
 }
 
