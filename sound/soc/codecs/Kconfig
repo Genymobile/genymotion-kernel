@@ -495,6 +495,9 @@ config SND_SOC_MAX98925
 config SND_SOC_MAX9850
 	tristate
 
+config SND_SOC_NAU8825
+	tristate "Nuvoton NAU8825 CODEC"
+
 config SND_SOC_PCM1681
 	tristate "Texas Instruments PCM1681 CODEC"
 	depends on I2C
@@ -906,9 +909,6 @@ config SND_SOC_MC13783
 	tristate
 
 config SND_SOC_ML26124
-	tristate
-
-config SND_SOC_NAU8825
 	tristate
 
 config SND_SOC_TPA6130A2
