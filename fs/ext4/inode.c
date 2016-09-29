@@ -44,6 +44,7 @@
 #include "truncate.h"
 
 #include <trace/events/ext4.h>
+#include <trace/events/android_fs.h>
 
 #define MPAGE_DA_EXTENT_TAIL 0x01
 
@@ -51,25 +52,31 @@ static __u32 ext4_inode_csum(struct inode *inode, struct ext4_inode *raw,
 			      struct ext4_inode_info *ei)
 {
 	struct ext4_sb_info *sbi = EXT4_SB(inode->i_sb);
-	__u16 csum_lo;
-	__u16 csum_hi = 0;
 	__u32 csum;
+	__u16 dummy_csum = 0;
+	int offset = offsetof(struct ext4_inode, i_checksum_lo);
+	unsigned int csum_size = sizeof(dummy_csum);
 
-	csum_lo = le16_to_cpu(raw->i_checksum_lo);
-	raw->i_checksum_lo = 0;
-	if (EXT4_INODE_SIZE(inode->i_sb) > EXT4_GOOD_OLD_INODE_SIZE &&
-	    EXT4_FITS_IN_INODE(raw, ei, i_checksum_hi)) {
-		csum_hi = le16_to_cpu(raw->i_checksum_hi);
-		raw->i_checksum_hi = 0;
+	csum = ext4_chksum(sbi, ei->i_csum_seed, (__u8 *)raw, offset);
+	csum = ext4_chksum(sbi, csum, (__u8 *)&dummy_csum, csum_size);
+	offset += csum_size;
+	csum = ext4_chksum(sbi, csum, (__u8 *)raw + offset,
+			   EXT4_GOOD_OLD_INODE_SIZE - offset);
+
+	if (EXT4_INODE_SIZE(inode->i_sb) > EXT4_GOOD_OLD_INODE_SIZE) {
+		offset = offsetof(struct ext4_inode, i_checksum_hi);
+		csum = ext4_chksum(sbi, csum, (__u8 *)raw +
+				   EXT4_GOOD_OLD_INODE_SIZE,
+				   offset - EXT4_GOOD_OLD_INODE_SIZE);
+		if (EXT4_FITS_IN_INODE(raw, ei, i_checksum_hi)) {
+			csum = ext4_chksum(sbi, csum, (__u8 *)&dummy_csum,
+					   csum_size);
+			offset += csum_size;
+			csum = ext4_chksum(sbi, csum, (__u8 *)raw + offset,
+					   EXT4_INODE_SIZE(inode->i_sb) -
+					   offset);
+		}
 	}
-
-	csum = ext4_chksum(sbi, ei->i_csum_seed, (__u8 *)raw,
-			   EXT4_INODE_SIZE(inode->i_sb));
-
-	raw->i_checksum_lo = cpu_to_le16(csum_lo);
-	if (EXT4_INODE_SIZE(inode->i_sb) > EXT4_GOOD_OLD_INODE_SIZE &&
-	    EXT4_FITS_IN_INODE(raw, ei, i_checksum_hi))
-		raw->i_checksum_hi = cpu_to_le16(csum_hi);
 
 	return csum;
 }
@@ -1010,6 +1017,8 @@ static int ext4_write_begin(struct file *file, struct address_space *mapping,
 	pgoff_t index;
 	unsigned from, to;
 
+	trace_android_fs_datawrite_start(inode, pos, len,
+					 current->pid, current->comm);
 	trace_ext4_write_begin(inode, pos, len, flags);
 	/*
 	 * Reserve one block more for addition to orphan list in case
@@ -1146,6 +1155,7 @@ static int ext4_write_end(struct file *file,
 	int ret = 0, ret2;
 	int i_size_changed = 0;
 
+	trace_android_fs_datawrite_end(inode, pos, len);
 	trace_ext4_write_end(inode, pos, len, copied);
 	if (ext4_test_inode_state(inode, EXT4_STATE_ORDERED_MODE)) {
 		ret = ext4_jbd2_file_inode(handle, inode);
@@ -1254,6 +1264,7 @@ static int ext4_journalled_write_end(struct file *file,
 	unsigned from, to;
 	int size_changed = 0;
 
+	trace_android_fs_datawrite_end(inode, pos, len);
 	trace_ext4_journalled_write_end(inode, pos, len, copied);
 	from = pos & (PAGE_CACHE_SIZE - 1);
 	to = from + len;
@@ -2721,6 +2732,8 @@ static int ext4_da_write_begin(struct file *file, struct address_space *mapping,
 					len, flags, pagep, fsdata);
 	}
 	*fsdata = (void *)0;
+	trace_android_fs_datawrite_start(inode, pos, len,
+					 current->pid, current->comm);
 	trace_ext4_da_write_begin(inode, pos, len, flags);
 
 	if (ext4_test_inode_state(inode, EXT4_STATE_MAY_INLINE_DATA)) {
@@ -2839,6 +2852,7 @@ static int ext4_da_write_end(struct file *file,
 		return ext4_write_end(file, mapping, pos,
 				      len, copied, page, fsdata);
 
+	trace_android_fs_datawrite_end(inode, pos, len);
 	trace_ext4_da_write_end(inode, pos, len, copied);
 	start = pos & (PAGE_CACHE_SIZE - 1);
 	end = start + copied - 1;
@@ -3327,12 +3341,31 @@ static ssize_t ext4_direct_IO(struct kiocb *iocb, struct iov_iter *iter,
 	if (ext4_has_inline_data(inode))
 		return 0;
 
+	if (trace_android_fs_dataread_start_enabled() &&
+	    (iov_iter_rw(iter) == READ))
+		trace_android_fs_dataread_start(inode, offset, count,
+						current->pid,
+						current->comm);
+	if (trace_android_fs_datawrite_start_enabled() &&
+	    (iov_iter_rw(iter) == WRITE))
+		trace_android_fs_datawrite_start(inode, offset, count,
+						 current->pid,
+						 current->comm);
+
 	trace_ext4_direct_IO_enter(inode, offset, count, iov_iter_rw(iter));
 	if (ext4_test_inode_flag(inode, EXT4_INODE_EXTENTS))
 		ret = ext4_ext_direct_IO(iocb, iter, offset);
 	else
 		ret = ext4_ind_direct_IO(iocb, iter, offset);
 	trace_ext4_direct_IO_exit(inode, offset, count, iov_iter_rw(iter), ret);
+
+	if (trace_android_fs_dataread_start_enabled() &&
+	    (iov_iter_rw(iter) == READ))
+		trace_android_fs_dataread_end(inode, offset, count);
+	if (trace_android_fs_datawrite_start_enabled() &&
+	    (iov_iter_rw(iter) == WRITE))
+		trace_android_fs_datawrite_end(inode, offset, count);
+
 	return ret;
 }
 
@@ -5186,8 +5219,6 @@ int ext4_mark_inode_dirty(handle_t *handle, struct inode *inode)
 						      sbi->s_want_extra_isize,
 						      iloc, handle);
 			if (ret) {
-				ext4_set_inode_state(inode,
-						     EXT4_STATE_NO_EXPAND);
 				if (mnt_count !=
 					le16_to_cpu(sbi->s_es->s_mnt_count)) {
 					ext4_warning(inode->i_sb,
